@@ -1,0 +1,31 @@
+---
+title: "Brainstorm Questions for Melbourne Pedestrian Data"
+output:
+  html_document: default
+  html_notebook: default
+---
+***  
+
+
+###Can we classify groups of sensor locations into types?###  
+* Cluster analysis?  
+* Types of areas? (restaurants and bars, clubs, shopping, train stations, etc..)  
+    + peak traffic periods different?
+
+###How does the pedestrian flow change with weather?###  
+* Does rain result in less people in the city? Only on weekends and holidays?  
+* Modelling based on past weather  
+* Forecasting using weather forecast  
+    + differences between business/office districts vs. leisure districts (shopping, cultural/tourist) - maybe lcassify these areas manually and see if we can confirm by cluster analysis?  
+  
+###Is there a “maximum capacity” to how many people can move through the city in a given time frame? And if so, what affects this capacity?###  
+
+* At quantiles for given locations, say 95th percentile  
+* Look at features of those locations to see what may affect flow (linked to clustering? maybe factor analysis?)  
+    + Does this change with weather conditions? (similar to road traffic being affected by adverse weather potentially?)  
+    + Any difference for areas with limited road traffic (Swanston and Bourke)
+
+###Can we predict whether a day is a public holiday?###
+
+* We expect that business areas to be quiet, and leisure areas to be just as busy/busier
+    + maybe need to compare ratios between areas
