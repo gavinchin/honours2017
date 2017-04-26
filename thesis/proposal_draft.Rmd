@@ -1,0 +1,120 @@
+---
+title: "Draft Proposal"
+author: "Gavin Chin"
+output:
+  pdf_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(readr)
+library(ggplot2)
+library(ggmap)
+library(grid)
+library(png)
+library(knitr)
+```
+
+```{r, echo = FALSE, messages = FALSE, include=FALSE, cache=TRUE}
+  ped_df <- read_csv("data/Pedestrian_volume__updated_monthly_.csv")
+      ped_df$Year <- as.factor(ped_df$Year)
+      ped_df$Month <- as.factor(ped_df$Month)
+      ped_df$Month <- factor(ped_df$Month, levels(ped_df$Month)[c(5,4,8,1,9,7,6,2,12,11,10,3)])
+      ped_df$Time <- as.factor(ped_df$Time)
+      ped_df$Timeplot <- as.integer(ped_df$Time)
+      ped_df$MTime <- as.integer(ped_df$Time) + ((as.integer(ped_df$Mdate)-1) * 24)
+      ped_df$Day <- as.factor(ped_df$Day)
+      ped_df$Day <- factor(ped_df$Day, levels(ped_df$Day)[c(2,6,7,5,1,3,4)])
+      
+  ped_loc <- read_csv("data/Pedestrian_sensor_locations.csv")
+  
+  melb <- get_map(location=c(mean(range(ped_loc$Longitude)),
+                               mean(range(ped_loc$Latitude))),
+                                zoom=14)
+```
+
+## Topic
+The City of Melbourne provides an open data platform to access council datasets, with the intention "to increase transparency, improve public services and support new economic and social initiatives" $^1$. This paper will focus primarily on the pedestrian data collected from pedestrian sensors placed throughout Melbourne's CBD. In particular, we want to be able to model the pedestrian traffic at different locations in the CBD, and forecast the traffic. In addition, we aim to have an interactive, dynamic data visualisation of the model to help 
+
+--------------------------------------------------------------------------------------------------------------------------------------
+
+## Background  
+
+
+#### The Data: City of Melbourne Pedestrian Data  
+
+The dataset being investigated can be obtained from the official City of Melbourne's open data platform. The pedestrian data is in the form of hourly pedestrian counts for `r nrow(ped_loc)` sensor locations. In total, there is `r nrow(ped_df)` observations in the dataset. It is available in `.csv` format, allowing for easy data import into R.  
+
+```{r, echo = F, fig.align= "center", fig.width=3.5, fig.height=3.5}
+ggmap(melb) + geom_point(aes(x = Longitude, y = Latitude), data = ped_loc, colour = "red", alpha = 0.7) +
+              labs(title = "Melbourne Pedestrian Sensor Locations") +
+              xlab(NULL) + ylab(NULL) +
+              theme(plot.title = element_text(hjust = 0.5), plot.caption = element_text(hjust = 0.5),
+                    axis.text.x = element_blank(), axis.text.y = element_blank(),
+                    axis.ticks = element_blank())
+```
+\begin{center}
+Figure 1:  Locations of all pedestrian sensors around Melbourne's CBD as at April 2017
+\end{center}  
+
+These sensors are placed above flowing traffic either under an awning or on a street pole, recording movements from multiple directions. The pedestrian counting system was introduced by the council with the objectives to help inform decisions about urban planning and management, identify opportunities to improve city walkability and transport, to measure the impact of events and specific marketing campaings, as well as to monitor retail activity and aiding the business community with marketing and resource management.  
+
+Each observation in the data contains three main variables: the specific hour (date and time of day), location (sensor ID) and the pedestrian count for the hour. Other variables were also included such as the month, date, hour of the day, etc.. to help with the analysis. These variables do not being in any additional information however.  
+
+```{r, message= FALSE, warning= FALSE, fig.height=4, echo = FALSE}
+  ggplot(ped_df[ped_df$Sensor_ID == "3", ]) + 
+    geom_smooth(aes(x = Timeplot, y = Hourly_Counts, colour = Month), se = F) + 
+    xlab(NULL) + ylab("Pedestrian Count") + 
+    ggtitle(ped_loc$`Sensor Description`[ped_loc$`Sensor ID` == "3"]) +
+    facet_wrap(~ Day) + theme(plot.title = element_text(hjust = 0.5))
+```
+  
+\begin{center}
+Figure 2: Smoothed pedestrian counts for Melbourne Central by day of the week and month of the year
+\end{center}  
+
+We are faced with two large limitations due to the nature of the collection of the data. Firstly, pedestrian counts are aggregated hourly. This does not allow for highly accurate modelling. Secondly, we note that there is a lack of sensors, and hence pedestrian data, for the area between Spencer Street and Elizabeth Street. The majority of the sensors have been installed by the City of Melbourne along Swanston Street. The consequence of this is the potential to make misleading conclusions regarding the pedestrian activity in that area. Plotting pedestrian traffic of the entire CBD may give the inaccurate perception of very low/no pedestrian activity.  
+It is hoped that pedestrian data based on WiFi points around the CBD, which has greater spatial coverage and a higher degree of resolution (counts aggregated every 15 minutes), will be available. The analysis based on the sensor data should remain valid for the WiFi data.  
+
+
+#### Current Pedestrian Data Visualisation  
+
+The City of Melbourne currently has an online visualisation tool which is publicly accessible at [City of Melbourne Pedestrian Counting System](http://www.pedestrian.melbourne.vic.gov.au) (`http://www.pedestrian.melbourne.vic.gov.au`). This visualisation features an interactive map of Melbourne's CBD with markers indicating the the location and the pedestrian activity at the location for a given time and date.  
+
+```{r, out.width= '70%', echo = FALSE, fig.align= "center"}
+include_graphics("img/ped_vis_melb.PNG")
+```
+
+\begin{center}
+Figure 3: Pedestrian Counting System Visualisation from www.pedestrian.melbourne.vic.gov.au
+\end{center}  
+  
+  
+Pedestrian activity is represented by two aesthetic features - size and colour. The markers, in the shape of thermometers, change in height based on the absolute pedestrian count, with a colour scale from blue to white to yellow, analogous to temperature, to map the relative diference in activity. The colour changes when the hourly counts deviate by more than 10% from the average count over the previous four weeks for the same day of the week and time of the day.  In addition to these aesthetics, the plot itself is both interactive and animated.  
+
+The main advantage of an animated/dynamic plot is that the changes over time can be visualised effectively for multiple sensor locations. The UI (user interface) allows the end user to change the date visualisation, and either view pedestrian traffic of a particular hour of the day, or to run an animation of the whole day's pedestrian traffic. 
+  
+  
+## Methodology  
+  
+  The first step in performing the analysis is to clean the data. In particular, we need to impute the missing values at certain sensor locations. This is cause by two primary reasons: 1) new sensors being installed over time, and 2) sensors not operational for periods of time. A possible model which has been proposed is a GLM (generalized linear model) to estimate a Poisson regression: $$\text{HourlyCounts} \sim \text{Year} \times \text{HDay} \times \text{Time} + \text{Month} \label{poisson_model} \tag{1}$$  
+  
+This estimation is computed for each sensor individually, as each location will have unique characteristics. This model assumes that the hourly pedestrian counts for a given location is dependent on the time of day, `Time`, where the `Year` and day of the week has as interaction effect. `Month` has an additive effect in this model, rather than an interactive effect. This would imply that the month of the year does not affect the pattern of activity for a given day of the week and time of day.  
+
+In equation \ref{poisson_model}, the variable `HDay` refers to a factor variable with 8 factor levels: the 7 days of the week and a factor for a public holiday. This is generated such that, if the day is a public holiday, then `HDay = "Holiday"`, regardless of the day of the week. Otherwise, `HDay` is the same as the factor for the day of the week.  
+Alternatively, it would be possible to allow for the effect of a public holiday by including a separate dummy variable. However, the likelihood of overfitting is greater, as we have a lack of public holidays as it is, let alone the lack of holidays falling on each day of the week. Similarly, the inclusion of the `Year` variable may introduce similar problems, especially at newer sensor locations with a lack of historical data.  
+  
+Another decision which needs to be made is the starting date to model from. With multiple sensors being installed years later after the initial 28 sensors were installed and capturing data, we do not have a complete set of observations over the total observation period at each sensor location. These locations will need to have pedestrian activity modelled based on neighbouring sensors to predict missing values for the time period prior to the sensor's installation and operation.  
+
+After the imputation of the missing values, we want to model the data (under the assumption that it is now complete for a given time period). In particular, we want to see if we can model pedestrian activity with weather data from the Bureau of Meteorology. The motivation for this is the availability of weather forecasts. Without looking at the data, we would expect that the effects of weather to have a greater effect on weekends and public holidays than on weekdays. The intuition behind this hypothesis is that activity in the CBD during weekends and public holidays is generally for leisure, whereas weekday activity is primarily for business and commercial activities.  
+
+Weather may also have a casual effect by month of the year, due to seasonal weather. This could help explain differences in activity levels in summer compared to in winter in certain locations. This effect may also only have an effect in outdoor locations, and not on indoor locations. For example, Melbourne Central, a retail shopping area, is affected by `Month`, but most likely not weather. From _Figure 2_, we see that the average peak actvity on Fridays and Saturdays in January is significantly lower than other months of the year, while weather conditions are similar to December and February. This is most likely to be explained by typical seasonal consumer behaviour: peak consumer spending occurs in December due to Christmas gift shopping and Boxing Day sales. As a result, guilt ridden consumers tend to wind back retail spending during January. It can also be explained by people going on vacations out into regional/rural areas. 
+
+
+
+## References  
+  1. City of Melbourne, _'About Melbourne Data'_, https://data.melbourne.vic.gov.au/about, _accessed 18 April 2017_  
+  2. City of Melbourne, _'Pedestrian Counting System'_,  
+  http://www.pedestrian.melbourne.vic.gov.au/pdf/CityofMelbournePedestrianCountingSystem.pdf 4 May 2015, _accessed 18 April 2017_  
+  
+  
