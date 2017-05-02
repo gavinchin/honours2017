@@ -3,6 +3,7 @@ title: "Draft Proposal"
 author: "Gavin Chin"
 output:
   pdf_document: default
+  html_document: default
 ---
 
 ```{r setup, include=FALSE}
@@ -64,7 +65,7 @@ These sensors are placed above flowing traffic either under an awning or on a st
 
 Each observation in the data contains three main variables: the specific hour (date and time of day), location (sensor ID) and the pedestrian count for the hour. Other variables were also included such as the month, date, hour of the day, etc.. to help with the analysis. These variables do not being in any additional information however.  
 
-```{r, message= FALSE, warning= FALSE, fig.height=4, fig.width=6, echo = FALSE}
+```{r, message= FALSE, warning= FALSE, fig.height=4, fig.width=6, echo = FALSE, fig.align= "center"}
   ggplot(ped_df[ped_df$Sensor_ID == "3", ]) + 
     geom_smooth(aes(x = Timeplot, y = Hourly_Counts, colour = Month), se = F) + 
     xlab("Time of the Day") + ylab("Pedestrian Count") + 
@@ -101,17 +102,25 @@ The main advantage of an animated/dynamic plot is that the changes over time can
 #### Modelling a time series with multiple seasonal patterns    
   
 The pedestrian data is presented as a time series. However, we face a major obstacle with pedestrian data: multiple seasonal patterns. Looking at the data on a month to month basis at a single sensor location, we have two main cycles: a daily sub-cycle within a weekly cycle.
-```{r, message= FALSE, warning= FALSE, fig.height=2, echo = FALSE}
+```{r, message= FALSE, warning= FALSE, fig.height=2, echo = FALSE, fig.align= "center"}
 bsplot <- ped_df %>% filter(Year == "2016", Month == "June", Mdate < 25, Sensor_ID == "13")
 ggplot(bsplot) + geom_line(aes(x = MTime, y = Hourly_Counts)) +
       xlab("Hour of the Month") + ylab("Hourly Counts") + theme_light()
 ```
-
-```{r, message= FALSE, warning= FALSE, fig.height=3, echo = FALSE}
+\begin{center}
+Figure 3:  Sample of hourly counts of pedestrians at Flagstaff Station (June 2016)
+\end{center}  
+From _Figure 3_, we can observe multiple characteristics of the time series. Firstly, we see the weekly cycle, where weekdays (Monday to Friday) have lots of activity and weekends (Saturday and Sunday) are relatively quiet. This would be highly suggestive that Flagstaff Station is primarily used by city office workers. Another phenomenon we observe is the effect of a public holiday. Looking near the middle of the month (Monday, 13 June 2016), we have the Queen's Birthday public holiday. We must also note that, prior to the start of 2016, Flagstaff Station was not operating on weekends, nor public holidays.
+```{r, message= FALSE, warning= FALSE, fig.height=3, echo = FALSE, fig.align= "center"}
 ggplot(filter(ped_df, Sensor_ID == "13")) + geom_smooth(aes(x = as.integer(Time), y = Hourly_Counts, colour = Day)) +
       xlab("Hour of the Day") + ylab("Hourly Counts") + theme_light()
 
 ```
+\begin{center}
+Figure 4:  Estimated hourly counts at Flagstaff Station by Day using `geom_smooth()`
+\end{center}  
+
+In _Figure 4_, we see that, within the weekly cycle, each day has a daily sub-cycle. The plot in _Figure 4_ is generated using `geom_smooth` in `ggplot2`, which fitted a line to estimate hourly counts over time for each day using a GAM (generalized additive model) for smoothing. 
 
 ## Methodology  
   
