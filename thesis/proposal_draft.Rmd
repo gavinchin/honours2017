@@ -101,7 +101,7 @@ Figure 3: Pedestrian Counting System Visualisation from www.pedestrian.melbourne
   
 Pedestrian activity is represented by two aesthetic features - size and colour. The markers, in the shape of thermometers, change in height based on the absolute pedestrian count, with a colour scale from blue to white to yellow, analogous to temperature, to map the relative diference in activity. The colour changes when the hourly counts deviate by more than 10% from the average count over the previous four weeks for the same day of the week and time of the day.  In addition to these aesthetics, the plot itself is both interactive and animated.  
 
-The main advantage of an animated/dynamic plot is that the changes over time can be visualised effectively for multiple sensor locations. The UI (user interface) allows the end user to change the date visualisation, and either view pedestrian traffic of a particular hour of the day, or to run an animation of the whole day's pedestrian traffic.  
+The main advantage of an animated/dynamic plot is that the changes over time can be visualised effectively for multiple sensor locations. This is particularly useful in reducing change blindness in the peception of the data visualisation, as it is easier for people viewing the plot to see relative changes from one hour to the next. The UI (user interface) allows the end user to change the date visualisation, and either view pedestrian traffic of a particular hour of the day, or to run an animation of the whole day's pedestrian traffic.  
 
 #### Modelling a time series with multiple seasonal patterns    
   
@@ -124,11 +124,13 @@ ggplot(filter(ped_df, Sensor_ID == "13")) + geom_smooth(aes(x = as.integer(Time)
 Figure 4:  Estimated hourly counts at Flagstaff Station by Day 
 \end{center}  
 
-In _Figure 4_, we see that, within the weekly cycle, each day has a daily sub-cycle. The plot in _Figure 4_ is generated using `geom_smooth` in `ggplot2`, which fitted a line to estimate hourly counts over time for each day using a GAM (generalized additive model) for smoothing. 
+In _Figure 4_, we see that, within the weekly cycle, each day has a daily sub-cycle. The plot in _Figure 4_ is generated using `geom_smooth` in `ggplot2`, which fitted a line to estimate hourly counts over time for each day using a GAM (generalized additive model) for smoothing. We can see the patterns we observe on a weekly cycle here when we seperately estimate by the day of the week. What we can see more clearly is also the difference in the pattern of pedestrian activity for each hour of the day, where there are two main peaks per weekday. This is consistent with the peak travel times for people commuting to and from work.  
+
+The consequence of having multiple seasonalities in the time series is that typical time series 
 
 #### R and Shiny Apps  
 
-R is an open source programming language used for statistical computing. 
+R is an open source programming language used for statistical computing. Shiny, made by RStudio, is a web application framework for R. It allows us to easily develop interactive web applications which interface with R in the background.  Combining these with open source packages in R, such as `ggplot2` or `plotly`, we can develop dynamic, interactive visualisations for data. 
 
 ## Methodology  
   
