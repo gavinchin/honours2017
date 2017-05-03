@@ -1,0 +1,64 @@
+---
+title: "Modelling the City of Melbourne Pedestrian Data"
+author: "Gavin Chin, supervised by Di Cook"
+date: "04/05/2017"
+output: ioslides_presentation
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE)
+library(readr)
+library(dplyr)
+library(purrr)
+library(ggplot2)
+library(ggmap)
+library(knitr)
+library(lubridate)
+
+  ped_df <- read_csv("../data/Pedestrian_volume__updated_monthly_.csv")
+      ped_df$Year <- as.factor(ped_df$Year)
+      ped_df$Month <- as.factor(ped_df$Month)
+      ped_df$Month <- factor(ped_df$Month, levels(ped_df$Month)[c(5,4,8,1,9,7,6,2,12,11,10,3)])
+      ped_df$Time <- as.factor(ped_df$Time)
+      ped_df$Timeplot <- as.integer(ped_df$Time)
+      ped_df$MTime <- as.integer(ped_df$Time) + ((as.integer(ped_df$Mdate)-1) * 24)
+      ped_df$Day <- as.factor(ped_df$Day)
+      ped_df$Day <- factor(ped_df$Day, levels(ped_df$Day)[c(2,6,7,5,1,3,4)])
+      
+  ped_loc <- read_csv("../data/Pedestrian_sensor_locations.csv")
+  
+  melb <- get_map(location=c(mean(range(ped_loc$Longitude)),
+                               mean(range(ped_loc$Latitude))),
+                                zoom=14)
+```
+
+## Introduction
+
+The City of Melbourne provides an open data platform to access council datasets through its Open Data Platform  
+This project focuses primarily on the pedestrian data collected from pedestrian sensors placed throughout Melbourne's CBD
+
+## Pedestrian Sensors
+
+```{r, echo = F, fig.align= "center", cache=TRUE}
+ggmap(melb) + geom_point(aes(x = Longitude, y = Latitude), data = ped_loc, colour = "red", alpha = 0.7) +
+              labs(title = "Melbourne Pedestrian Sensor Locations") +
+              xlab(NULL) + ylab(NULL) +
+              theme(plot.title = element_text(hjust = 0.5), plot.caption = element_text(hjust = 0.5),
+                    axis.text.x = element_blank(), axis.text.y = element_blank(),
+                    axis.ticks = element_blank())
+```
+
+## Time Series of Pedestrian Activity
+
+```{r, message= FALSE, warning= FALSE, fig.align= "center"}
+ped_df %>% filter(Year == "2016", Month == "June", Mdate < 25, Sensor_ID == "13") %>%
+  ggplot() + geom_line(aes(x = MTime, y = Hourly_Counts)) +
+      xlab("Hour of the Month") + ylab("Hourly Counts") + theme_light()
+```
+
+## Slide with Plot
+
+```{r pressure}
+plot(pressure)
+```
+
