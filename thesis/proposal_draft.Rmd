@@ -104,7 +104,11 @@ Figure 3: Pedestrian Counting System Visualisation from www.pedestrian.melbourne
   
 Pedestrian activity is represented by two aesthetic features - size and colour. The markers, in the shape of thermometers, change in height based on the absolute pedestrian count, with a colour scale from blue to white to yellow, analogous to temperature, to map the relative diference in activity. The colour changes when the hourly counts deviate by more than 10% from the average count over the previous four weeks for the same day of the week and time of the day.  In addition to these aesthetics, the plot itself is both interactive and animated.  
 
-The main advantage of an animated/dynamic plot is that the changes over time can be visualised effectively for multiple sensor locations. This is particularly useful in reducing change blindness in the peception of the data visualisation, as it is easier for people viewing the plot to see relative changes from one hour to the next. The UI (user interface) allows the end user to change the date visualisation, and either view pedestrian traffic of a particular hour of the day, or to run an animation of the whole day's pedestrian traffic.  
+The main advantage of an animated/dynamic plot is that the changes over time can be visualised effectively for multiple sensor locations. This is particularly useful in reducing change blindness[^3] in the peception of the data visualisation, as it is easier for people viewing the plot to see relative changes from one hour to the next at a certain location. However, a particular aspect which needs to be improved on is the ability to visualise the pedestrian activity levels around the whole city at once. The UI (user interface) allows some interaction by the end user. It allows the user to change the date visualisation, and either view pedestrian traffic of a particular hour of the day, or to run an animation of the whole day's pedestrian traffic. Clicking on a sensor location brings up a line graph plotting hourly counts for the day.  
+
+Another 
+
+[^3]: change blindness is the inability to notice a change in visual stimulus introduced
 
 #### Modelling a time series with multiple seasonal patterns    
   
@@ -129,7 +133,7 @@ Figure 4:  Estimated hourly counts at Flagstaff Station by Day
 
 In _Figure 4_, we see that, within the weekly cycle, each day has a daily sub-cycle. The plot in _Figure 4_ is generated using `geom_smooth` in `ggplot2`, which fitted a line to estimate hourly counts over time for each day using a GAM (generalized additive model) for smoothing. We can see the patterns we observe on a weekly cycle here when we seperately estimate by the day of the week. What we can see more clearly is also the difference in the pattern of pedestrian activity for each hour of the day, where there are two main peaks per weekday. This is consistent with the peak travel times for people commuting to and from work.  
 
-The consequence of having multiple seasonalities in the time series is that typical time series 
+The consequence of having multiple seasonalities in the time series is that typical time series do not deal with multiple seasonalities well. 
 
 #### R and Shiny Apps  
 
@@ -166,5 +170,7 @@ Weather may also have a casual effect by month of the year, due to seasonal weat
   2. City of Melbourne, _'Pedestrian Counting System'_,  
   http://www.pedestrian.melbourne.vic.gov.au/pdf/CityofMelbournePedestrianCountingSystem.pdf 
   4 May 2015, _accessed 18 April 2017_  
+  3. Christopher G. Healey, _'Attention and Visual Memory in Visualization and Computer Graphics'_, IEEE Transactions on Visualization and Computer Graphics,  
+  https://www.csc2.ncsu.edu/faculty/healey/download/tvcg.12a.pdf
   
   
