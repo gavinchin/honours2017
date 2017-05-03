@@ -1,6 +1,10 @@
 ---
-title: "Draft Proposal"
-author: "Gavin Chin"
+title: "What can we learn about life in the city by mining the Melbourne’s Open Data Platform?"
+subtitle: "Thesis Proposal"
+date: April 2017
+author: 
+- "Gavin Chin"
+- "supervised by Dianne Cook"
 output:
   pdf_document: default
   html_document: default
@@ -117,14 +121,23 @@ ggplot(filter(ped_df, Sensor_ID == "13")) + geom_smooth(aes(x = as.integer(Time)
 
 ```
 \begin{center}
-Figure 4:  Estimated hourly counts at Flagstaff Station by Day using `geom_smooth()`
+Figure 4:  Estimated hourly counts at Flagstaff Station by Day 
 \end{center}  
 
 In _Figure 4_, we see that, within the weekly cycle, each day has a daily sub-cycle. The plot in _Figure 4_ is generated using `geom_smooth` in `ggplot2`, which fitted a line to estimate hourly counts over time for each day using a GAM (generalized additive model) for smoothing. 
 
+#### R and Shiny Apps  
+
+R is an open source programming language used for statistical computing. 
+
 ## Methodology  
   
-  The first step in performing the analysis is to clean the data. In particular, we need to impute the missing values at certain sensor locations. This is cause by two primary reasons: 1) new sensors being installed over time, and 2) sensors not operational for periods of time. A possible model which has been proposed is a GLM (generalized linear model) to estimate a Poisson regression: $$\text{HourlyCounts} \sim \text{Year} \times \text{HDay} \times \text{Time} + \text{Month} \label{poisson_model} \tag{1}$$  
+  The first step in performing the analysis is to clean the data. In particular, we need to impute the missing values at certain sensor locations. This is cause by two primary reasons: 1) new sensors being installed over time, and 2) sensors not operational for periods of time. A possible model which has been proposed is a GLM (generalized linear model) to estimate a Poisson regression: 
+\begin{align*}
+\text{HourlyCounts} & \sim\text{Year}\times\text{HDay}\times\text{Time}+\text{Month}\tag{1}\\
+\Rightarrow\qquad\lambda_{i} & =\beta_{0}+\beta_{1}\text{Year}\times\text{HDay}\times\text{Time}+\beta_{2}\text{Month}\\
+\text{HourlyCounts}_{i} & =\text{Poisson}\left(\lambda_{i}\right)
+\end{align*} 
   
 This estimation is computed for each sensor individually, as each location will have unique characteristics. This model assumes that the hourly pedestrian counts for a given location is dependent on the time of day, `Time`, where the `Year` and day of the week has as interaction effect. `Month` has an additive effect in this model, rather than an interactive effect. This would imply that the month of the year does not affect the pattern of activity for a given day of the week and time of day.  
 
