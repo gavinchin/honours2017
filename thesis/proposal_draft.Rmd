@@ -106,12 +106,15 @@ Pedestrian activity is represented by two aesthetic features - size and colour. 
 
 The main advantage of an animated/dynamic plot is that the changes over time can be visualised effectively for multiple sensor locations. This is particularly useful in reducing change blindness[^3] in the peception of the data visualisation, as it is easier for people viewing the plot to see relative changes from one hour to the next at a certain location. However, a particular aspect which needs to be improved on is the ability to visualise the pedestrian activity levels around the whole city at once. The UI (user interface) allows some interaction by the end user. It allows the user to change the date visualisation, and either view pedestrian traffic of a particular hour of the day, or to run an animation of the whole day's pedestrian traffic. Clicking on a sensor location brings up a line graph plotting hourly counts for the day.  
 
-Another interactive visualisation featured on the Open Data Platform also presents pedestrian counts as average daily volume on a map of Melbourne's CBD. Daily counts are mapped to a size aesthetic. However, this visualisation is very limited. While it useful to see the overall average activity at a sensor location relative to other locations in the CBD, it fails to present key characteristics of the time series (discussed later). 
+Another interactive visualisation featured on the Open Data Platform ( _Figure 4_ )also presents pedestrian counts as average daily volume on a map of Melbourne's CBD. Daily counts are mapped to a size aesthetic. However, this visualisation is very limited. While it useful to see the overall average activity at a sensor location relative to other locations in the CBD, it fails to present key characteristics of the time series (discussed later). It also lacks basic features such as a legend for what colour represents.
 
 ```{r, out.width= '70%', echo = FALSE, fig.align= "center"}
 include_graphics("../img/ped_vis_melb_2.PNG")
 ```
 
+\begin{center}
+Figure 4: Interactive data visualisation created using Tableau
+\end{center}  
 
 [^3]: change blindness is the inability to notice a change in visual stimulus introduced
 
@@ -124,7 +127,7 @@ ggplot(bsplot) + geom_line(aes(x = MTime, y = Hourly_Counts)) +
       xlab("Hour of the Month") + ylab("Hourly Counts") + theme_light()
 ```
 \begin{center}
-Figure 3:  Sample of hourly counts of pedestrians at Flagstaff Station (June 2016)
+Figure 5:  Sample of hourly counts of pedestrians at Flagstaff Station (June 2016)
 \end{center}  
 From _Figure 3_, we can observe multiple characteristics of the time series. Firstly, we see the weekly cycle, where weekdays (Monday to Friday) have lots of activity and weekends (Saturday and Sunday) are relatively quiet. This would be highly suggestive that Flagstaff Station is primarily used by city office workers. Another phenomenon we observe is the effect of a public holiday. Looking near the middle of the month (Monday, 13 June 2016), we have the Queen's Birthday public holiday. We must also note that, prior to the start of 2016, Flagstaff Station was not operating on weekends, nor public holidays.
 ```{r, message= FALSE, warning= FALSE, fig.height=3, echo = FALSE, fig.align= "center", cache=TRUE}
@@ -133,7 +136,7 @@ ggplot(filter(ped_df, Sensor_ID == "13")) + geom_smooth(aes(x = as.integer(Time)
 
 ```
 \begin{center}
-Figure 4:  Estimated hourly counts at Flagstaff Station by Day 
+Figure 6:  Estimated hourly counts at Flagstaff Station by Day 
 \end{center}  
 
 In _Figure 4_, we see that, within the weekly cycle, each day has a daily sub-cycle. The plot in _Figure 4_ is generated using `geom_smooth` in `ggplot2`, which fitted a line to estimate hourly counts over time for each day using a GAM (generalized additive model) for smoothing. We can see the patterns we observe on a weekly cycle here when we seperately estimate by the day of the week. What we can see more clearly is also the difference in the pattern of pedestrian activity for each hour of the day, where there are two main peaks per weekday. This is consistent with the peak travel times for people commuting to and from work.  
@@ -147,6 +150,8 @@ R is an open source programming language used for statistical computing. Shiny, 
 In particular, the objective of this project is to have the modelled pedestrian data presented as an interactive web app using Shiny. A key part which makes the visualisations interactive is the ability to have user inputs. This may be in the form of selecting a time period for the data, or changing how a certain plot is generated (size, colour, etc..). Another key 
 
 ## Methodology  
+
+### Data Cleaning
   
   The first step in performing the analysis is to clean the data. In particular, we need to impute the missing values at certain sensor locations. This is cause by two primary reasons: 1) new sensors being installed over time, and 2) sensors not operational for periods of time. A possible model which has been proposed is a GLM (generalized linear model) to estimate a Poisson regression: 
   
@@ -160,14 +165,18 @@ This estimation is computed for each sensor individually, as each location will 
 
 In equation \ref{poisson_model}, the variable `HDay` refers to a factor variable with 8 factor levels: the 7 days of the week and a factor for a public holiday. This is generated such that, if the day is a public holiday, then `HDay = "Holiday"`, regardless of the day of the week. Otherwise, `HDay` is the same as the factor for the day of the week.  
 Alternatively, it would be possible to allow for the effect of a public holiday by including a separate dummy variable. However, the likelihood of overfitting is greater, as we have a lack of public holidays as it is, let alone the lack of holidays falling on each day of the week. Similarly, the inclusion of the `Year` variable may introduce similar problems, especially at newer sensor locations with a lack of historical data.  
+
+The purpose of this estimation is purely for the imputation of missing values, so prediction within this period is the highest priority at this point. While it would be desirable, this model is not intended to forecast future values.
   
 Another decision which needs to be made is the starting date to model from. With multiple sensors being installed years later after the initial 28 sensors were installed and capturing data, we do not have a complete set of observations over the total observation period at each sensor location. These locations will need to have pedestrian activity modelled based on neighbouring sensors to predict missing values for the time period prior to the sensor's installation and operation.  
+
+### Data Modelling
 
 After the imputation of the missing values, we want to model the data (under the assumption that it is now complete for a given time period). In particular, we want to see if we can model pedestrian activity with weather data from the Bureau of Meteorology. The motivation for this is the availability of weather forecasts. Without looking at the data, we would expect that the effects of weather to have a greater effect on weekends and public holidays than on weekdays. The intuition behind this hypothesis is that activity in the CBD during weekends and public holidays is generally for leisure, whereas weekday activity is primarily for business and commercial activities.  
 
 Weather may also have a casual effect by month of the year, due to seasonal weather. This could help explain differences in activity levels in summer compared to in winter in certain locations. This effect may also only have an effect in outdoor locations, and not on indoor locations. For example, Melbourne Central, a retail shopping area, is affected by `Month`, but most likely not weather. From _Figure 2_, we see that the average peak actvity on Fridays and Saturdays in January is significantly lower than other months of the year, while weather conditions are similar to December and February. This is most likely to be explained by typical seasonal consumer behaviour: peak consumer spending occurs in December due to Christmas gift shopping and Boxing Day sales. As a result, guilt ridden consumers tend to wind back retail spending during January. It can also be explained by people going on vacations out into regional/rural areas. 
 
-
+### Data Visualisation
 
 ## References  
   1. City of Melbourne, _'About Melbourne Data'_, https://data.melbourne.vic.gov.au/about,  
