@@ -42,7 +42,7 @@ library(lubridate)
 ```
 
 ## Topic
-The City of Melbourne provides an open data platform to access council datasets, with the intention "to increase transparency, improve public services and support new economic and social initiatives" $^1$. This paper will focus primarily on the pedestrian data collected from pedestrian sensors placed throughout Melbourne's CBD. In particular, we want to be able to model the pedestrian traffic at different locations in the CBD, and forecast the traffic. In addition, we aim to have an interactive, dynamic data visualisation of the model to help us to understand how Melbourne operates. 
+The City of Melbourne provides an open data platform to access council datasets, with the intention "to increase transparency, improve public services and support new economic and social initiatives"[^1]. This paper will focus primarily on the pedestrian data collected from pedestrian sensors placed throughout Melbourne's CBD. In particular, we want to be able to model the pedestrian traffic at different locations in the CBD, and forecast the traffic. In addition, we aim to have an interactive, dynamic data visualisation of the model to help us to understand how Melbourne operates. 
 
 --------------------------------------------------------------------------------------------------------------------------------------
 
@@ -51,9 +51,14 @@ The City of Melbourne provides an open data platform to access council datasets,
 
 #### The Data: City of Melbourne Pedestrian Data  
 
-The dataset being investigated can be obtained from the official City of Melbourne's open data platform. The pedestrian data is in the form of hourly pedestrian counts for `r nrow(ped_loc)` sensor locations. In total, there is `r nrow(ped_df)` observations in the dataset. It is available in `.csv` format, allowing for easy data import into R.  
+The dataset being investigated can be obtained from the official City of Melbourne's open data[^2]. The pedestrian data is in the form of hourly pedestrian counts for `r nrow(ped_loc)` sensor locations. In total, there is `r nrow(ped_df)` observations in the dataset. It is available in `.csv` format, allowing for easy data import into R.  
 
-```{r, echo = F, fig.align= "center", fig.width=3.5, fig.height=3.5}
+[^1]: from _'About Melbourne Data'_ page at https://data.melbourne.vic.gov.au/about
+
+[^2]: the specific pedestrian data is available at   https://data.melbourne.vic.gov.au/Transport-Movement/Pedestrian-volume-updated-monthly-/b2ak-trbp
+
+
+```{r, echo = F, fig.align= "center", fig.width=3.5, fig.height=3.5, cache=TRUE}
 ggmap(melb) + geom_point(aes(x = Longitude, y = Latitude), data = ped_loc, colour = "red", alpha = 0.7) +
               labs(title = "Melbourne Pedestrian Sensor Locations") +
               xlab(NULL) + ylab(NULL) +
@@ -69,7 +74,7 @@ These sensors are placed above flowing traffic either under an awning or on a st
 
 Each observation in the data contains three main variables: the specific hour (date and time of day), location (sensor ID) and the pedestrian count for the hour. Other variables were also included such as the month, date, hour of the day, etc.. to help with the analysis. These variables do not being in any additional information however.  
 
-```{r, message= FALSE, warning= FALSE, fig.height=4, fig.width=6, echo = FALSE, fig.align= "center"}
+```{r, message= FALSE, warning= FALSE, fig.height=4, fig.width=6, echo = FALSE, fig.align= "center", cache=TRUE}
   ggplot(ped_df[ped_df$Sensor_ID == "3", ]) + 
     geom_smooth(aes(x = Timeplot, y = Hourly_Counts, colour = Month), se = F) + 
     xlab("Time of the Day") + ylab("Pedestrian Count") + 
@@ -115,7 +120,7 @@ ggplot(bsplot) + geom_line(aes(x = MTime, y = Hourly_Counts)) +
 Figure 3:  Sample of hourly counts of pedestrians at Flagstaff Station (June 2016)
 \end{center}  
 From _Figure 3_, we can observe multiple characteristics of the time series. Firstly, we see the weekly cycle, where weekdays (Monday to Friday) have lots of activity and weekends (Saturday and Sunday) are relatively quiet. This would be highly suggestive that Flagstaff Station is primarily used by city office workers. Another phenomenon we observe is the effect of a public holiday. Looking near the middle of the month (Monday, 13 June 2016), we have the Queen's Birthday public holiday. We must also note that, prior to the start of 2016, Flagstaff Station was not operating on weekends, nor public holidays.
-```{r, message= FALSE, warning= FALSE, fig.height=3, echo = FALSE, fig.align= "center"}
+```{r, message= FALSE, warning= FALSE, fig.height=3, echo = FALSE, fig.align= "center", cache=TRUE}
 ggplot(filter(ped_df, Sensor_ID == "13")) + geom_smooth(aes(x = as.integer(Time), y = Hourly_Counts, colour = Day)) +
       xlab("Hour of the Day") + ylab("Hourly Counts") + theme_light()
 
@@ -130,11 +135,14 @@ The consequence of having multiple seasonalities in the time series is that typi
 
 #### R and Shiny Apps  
 
-R is an open source programming language used for statistical computing. Shiny, made by RStudio, is a web application framework for R. It allows us to easily develop interactive web applications which interface with R in the background.  Combining these with open source packages in R, such as `ggplot2` or `plotly`, we can develop dynamic, interactive visualisations for data. 
+R is an open source programming language used for statistical computing. Shiny, made by RStudio, is a web application framework for R. It allows us to easily develop interactive web applications which interface with R in the background.  Combining these with open source packages in R, such as `ggplot2` or `plotly`, we can develop dynamic, interactive visualisations for data.  
+
+In particular, the objective of this project is to have the modelled pedestrian data presented as an interactive web app using Shiny. A key part which makes the visualisations interactive is the ability to have user inputs. This may be in the form of selecting a time period for the data, or changing how a certain plot is generated (size, colour, etc..). Another key 
 
 ## Methodology  
   
   The first step in performing the analysis is to clean the data. In particular, we need to impute the missing values at certain sensor locations. This is cause by two primary reasons: 1) new sensors being installed over time, and 2) sensors not operational for periods of time. A possible model which has been proposed is a GLM (generalized linear model) to estimate a Poisson regression: 
+  
 \begin{align*}
 \text{HourlyCounts} & \sim\text{Year}\times\text{HDay}\times\text{Time}+\text{Month}\tag{1}\\
 \Rightarrow\qquad\lambda_{i} & =\beta_{0}+\beta_{1}\text{Year}\times\text{HDay}\times\text{Time}+\beta_{2}\text{Month}\\
