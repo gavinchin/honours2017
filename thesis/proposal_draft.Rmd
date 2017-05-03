@@ -106,7 +106,12 @@ Pedestrian activity is represented by two aesthetic features - size and colour. 
 
 The main advantage of an animated/dynamic plot is that the changes over time can be visualised effectively for multiple sensor locations. This is particularly useful in reducing change blindness[^3] in the peception of the data visualisation, as it is easier for people viewing the plot to see relative changes from one hour to the next at a certain location. However, a particular aspect which needs to be improved on is the ability to visualise the pedestrian activity levels around the whole city at once. The UI (user interface) allows some interaction by the end user. It allows the user to change the date visualisation, and either view pedestrian traffic of a particular hour of the day, or to run an animation of the whole day's pedestrian traffic. Clicking on a sensor location brings up a line graph plotting hourly counts for the day.  
 
-Another 
+Another interactive visualisation featured on the Open Data Platform also presents pedestrian counts as average daily volume on a map of Melbourne's CBD. Daily counts are mapped to a size aesthetic. However, this visualisation is very limited. While it useful to see the overall average activity at a sensor location relative to other locations in the CBD, it fails to present key characteristics of the time series (discussed later). 
+
+```{r, out.width= '70%', echo = FALSE, fig.align= "center"}
+include_graphics("../img/ped_vis_melb_2.PNG")
+```
+
 
 [^3]: change blindness is the inability to notice a change in visual stimulus introduced
 
