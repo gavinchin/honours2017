@@ -113,7 +113,7 @@ include_graphics("../img/ped_vis_melb_2.PNG")
 ```
 
 \begin{center}
-Figure 4: Interactive data visualisation created using Tableau
+Figure 4: An interactive data visualisation created using Tableau
 \end{center}  
 
 [^3]: change blindness is the inability to notice a change in visual stimulus introduced
@@ -176,11 +176,12 @@ After the imputation of the missing values, we want to model the data (under the
 
 Weather may also have a casual effect by month of the year, due to seasonal weather. This could help explain differences in activity levels in summer compared to in winter in certain locations. This effect may also only have an effect in outdoor locations, and not on indoor locations. For example, Melbourne Central, a retail shopping area, is affected by `Month`, but most likely not weather. From _Figure 2_, we see that the average peak actvity on Fridays and Saturdays in January is significantly lower than other months of the year, while weather conditions are similar to December and February. This is most likely to be explained by typical seasonal consumer behaviour: peak consumer spending occurs in December due to Christmas gift shopping and Boxing Day sales. As a result, guilt ridden consumers tend to wind back retail spending during January. It can also be explained by people going on vacations out into regional/rural areas.  
 
-The use of weather data to improve forecasting performance would be ideal, due to the availability of weather forecasts compared to many other forms of data. Machine learning techniques will also be explored. In particular, clustering of sensor locations may be useful in identifying patterns at certain types of location, such as tourist attractions and shopping districts.  
+The use of weather data to improve forecasting performance would be ideal, due to the availability of weather forecasts compared to many other forms of data. Machine learning techniques will also be explored. In particular, clustering of sensor locations may be useful in identifying patterns at certain types of location, such as tourist attractions and shopping districts.  To evaluate the performance of the model, we look to minimise the RMSE (root mean square error):
+$$ \text{RMSE} = \sqrt{\frac{\sum_{t=1}^{T}(\hat{y_t} - y_t)^2}{T}}$$
 
 ### Data Visualisation  
 
-Once a model for forecasting the data has been established, an interactive web application to present the model will be developed. A key aspect which we want to include is the ability for the end user to forecast pedestrian activity in the future. 
+Once a model for forecasting the data has been established, an interactive web application to present the model will be developed. A key aspect which we want to implement is the ability for the end user to forecast pedestrian activity in the future. Improving on the currently available visualisations, the aesthetics of the visualisation will be designed with human perception theory taken into consideration. Preattentive processing theory will be considered to ensure certain elements of the visualisation allow for quick, preattentive identification of busy and quiet areas. Change blindness theory should also be reviewed in order to avoid misperception of relative changes in pedestrian activity. 
 
 ## References  
   1. City of Melbourne, _'About Melbourne Data'_, https://data.melbourne.vic.gov.au/about,  
