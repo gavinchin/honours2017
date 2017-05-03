@@ -55,10 +55,3 @@ ped_df %>% filter(Year == "2016", Month == "June", Mdate < 25, Sensor_ID == "13"
   ggplot() + geom_line(aes(x = MTime, y = Hourly_Counts)) +
       xlab("Hour of the Month") + ylab("Hourly Counts") + theme_light()
 ```
-
-## Slide with Plot
-
-```{r pressure}
-plot(pressure)
-```
-
