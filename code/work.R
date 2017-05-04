@@ -6,6 +6,7 @@ library(purrr)
 library(ggplot2)
 library(knitr)
 library(lubridate)
+library(tidytext)
 
 ped_df <- read_csv("data/Pedestrian_volume__updated_monthly_.csv")
   ped_df$Year <- as.factor(ped_df$Year)
@@ -27,5 +28,15 @@ pub_hday16 <- read_csv("http://data.gov.au/dataset/b1bc6077-dadd-4f61-9f8c-002ab
   
   pub_hdays$Date <- ymd(pub_hdays$Date)
   pub_hdays$Month <- pub_hdays$Date %>% month(label = TRUE, abbr = FALSE)
-  
+  pub_hdays$VIC <- 0
+  pub_hdays$VIC[grep(glob2rx("*VIC*"), pub_hdays$`Applicable To`)] <- 1
+  pub_hdays$VIC[grep("NAT", pub_hdays$`Applicable To`)] <- 1
+
+  ped_df$HDay <- 0
+for (i in 1:nrow(ped_df)){
+  if (ped_df$Date_Time[i] %in% pub_hdays$Date[pub_hdays$VIC == 1]) {
+      ped_df$HDay[i] <- "Holiday"
+  }
+  else {ped_df$HDay[i] <- ped_df$Day[i]}
+}
   

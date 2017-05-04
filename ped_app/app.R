@@ -7,9 +7,6 @@ library(ggplot2)
 library(readr)
 library(ggmap)
 ##desktop
-  setwd("C:/Users/Gavin/Documents/honours2017/honours2017/")
-  Sys.setenv('MAPBOX_TOKEN' = 'pk.eyJ1IjoiYm9iYnl6MHIiLCJhIjoiMTk5MDczNWVmY2MzZjc2MmY0ZDI0YmZiYzEyNDc1MDYifQ.EFS7w-Ni47OoMpwy-zT_5A')
-  
   ped_df <- read_csv("data/Pedestrian_volume__updated_monthly_.csv")
   ped_df$Year <- as.factor(ped_df$Year)
   ped_df$Month <- as.factor(ped_df$Month)
