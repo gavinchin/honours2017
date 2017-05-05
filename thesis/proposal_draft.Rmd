@@ -188,7 +188,20 @@ For testing the proof of concept, a simple web application for viewing average h
 include_graphics("../img/ped_vis_melb_me.png")
 ```
 
+### Limitations  
 
+#### Model  
+The model itself is currently limited to being treating the data as static panel data. A major reason for this is the nature of the data, where the patterns from year to year do not change.  
+
+#### Visualisation  
+
+
+### Research Plan
+- Imputation that incorporates time and space
+- Predicitive model for each sensor
+- Visual methods for space-time counts
+- Shiny app - interface design, computation
+- dynamic
 
 ## References  
   1. City of Melbourne, _'About Melbourne Data'_, https://data.melbourne.vic.gov.au/about,  
