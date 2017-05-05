@@ -262,7 +262,7 @@ ggplot(filter(ped_plot, ID > 40)) + geom_line(aes(x = Time, y = counts)) + facet
 
 ```
 
-Looking at the plots of the monthly aggregates, we can inspect the data quickly for obvious outliers. After detrending the time series for both the deterministic trends (non-zero mean) and stochastic trends (weekly and daily cycles), we expect to have stationary series.
+Looking at the plots of the monthly aggregates, we can inspect the data quickly for obvious outliers. After detrending the time series for both the deterministic trends (non-zero mean) and stochastic trends (weekly and daily cycles), we expect to have a stationary series. Anything outside these "expected" trends from the cycles could indicate an unobserved variable (such as weather) having a casual effect on the pedestrian count. Large "dips" in the series, or odd values over a long time span may be indicative of missing values which need to be imputed.
 
 Note that the Sensor ID #41 is missing from the data for unknown reasons. 
 
