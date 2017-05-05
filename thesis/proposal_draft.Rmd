@@ -15,7 +15,6 @@ knitr::opts_chunk$set(echo = TRUE)
 options(scipen = 100)
 library(readr)
 library(dplyr)
-library(purrr)
 library(ggplot2)
 library(ggmap)
 library(knitr)
@@ -132,9 +131,9 @@ ggplot(bsplot) + geom_line(aes(x = MTime, y = Hourly_Counts)) +
 \begin{center}
 Figure 5:  Sample of hourly counts of pedestrians at Flagstaff Station (June 2016)
 \end{center}  
-From _Figure 3_, we can observe multiple characteristics of the time series. Firstly, we see the weekly cycle, where weekdays (Monday to Friday) have lots of activity and weekends (Saturday and Sunday) are relatively quiet. This would be highly suggestive that Flagstaff Station is primarily used by city office workers. Another phenomenon we observe is the effect of a public holiday. Looking near the middle of the month (Monday, 13 June 2016), we have the Queen's Birthday public holiday. We must also note that, prior to the start of 2016, Flagstaff Station was not operating on weekends, nor public holidays.
+From _Figure 5_, we can observe multiple characteristics of the time series. Firstly, we see the weekly cycle, where weekdays (Monday to Friday) have lots of activity and weekends (Saturday and Sunday) are relatively quiet. This would be highly suggestive that Flagstaff Station is primarily used by city office workers. Another phenomenon we observe is the effect of a public holiday. Looking near the middle of the month (Monday, 13 June 2016), we have the Queen's Birthday public holiday. We must also note that, prior to the start of 2016, Flagstaff Station was not operating on weekends, nor public holidays.
 ```{r, message= FALSE, warning= FALSE, fig.height=3, echo = FALSE, fig.align= "center", cache=TRUE}
-ggplot(filter(ped_df, Sensor_ID == "13")) + geom_smooth(aes(x = as.integer(Time), y = Hourly_Counts, colour = Day)) +
+ggplot(filter(ped_df, Sensor_ID == "13")) + geom_path(aes(x = as.integer(Time), y = Hourly_Counts, colour = Day), alpha = 0.2) +
       xlab("Hour of the Day") + ylab("Hourly Counts") + theme_light()
 
 ```
@@ -142,7 +141,7 @@ ggplot(filter(ped_df, Sensor_ID == "13")) + geom_smooth(aes(x = as.integer(Time)
 Figure 6:  Estimated hourly counts at Flagstaff Station by Day 
 \end{center}  
 
-In _Figure 4_, we see that, within the weekly cycle, each day has a daily sub-cycle. The plot in _Figure 4_ is generated using `geom_smooth` in `ggplot2`, which fitted a line to estimate hourly counts over time for each day using a GAM (generalized additive model) for smoothing. We can see the patterns we observe on a weekly cycle here when we seperately estimate by the day of the week. What we can see more clearly is also the difference in the pattern of pedestrian activity for each hour of the day, where there are two main peaks per weekday. This is consistent with the peak travel times for people commuting to and from work.  
+In _Figure 6_, we see that, within the weekly cycle, each day has a daily sub-cycle. We can see the patterns we observe on a weekly cycle here when we seperately estimate by the day of the week. What we can see more clearly is also the difference in the pattern of pedestrian activity for each hour of the day, where there are two main peaks per weekday. This is consistent with the peak travel times for people commuting to and from work.  
 
 The consequence of having multiple seasonalities in the time series is that typical time series do not deal with multiple seasonalities well. 
 
@@ -169,7 +168,9 @@ This estimation is computed for each sensor individually, as each location will 
 In equation \ref{poisson_model}, the variable `HDay` refers to a factor variable with 8 factor levels: the 7 days of the week and a factor for a public holiday. This is generated such that, if the day is a public holiday, then `HDay = "Holiday"`, regardless of the day of the week. Otherwise, `HDay` is the same as the factor for the day of the week.  
 Alternatively, it would be possible to allow for the effect of a public holiday by including a separate dummy variable. However, the likelihood of overfitting is greater, as we have a lack of public holidays as it is, let alone the lack of holidays falling on each day of the week. Similarly, the inclusion of the `Year` variable may introduce similar problems, especially at newer sensor locations with a lack of historical data.  
 
-The purpose of this estimation is purely for the imputation of missing values, so prediction within this period is the highest priority at this point. While it would be desirable, this model is not intended to forecast future values. Evaluating the model's goodness of fit, we perform cross validation. Splitting the data randomly 60/40 into a training set (data for model estimation) and a test set (data set to test the goodness of fit), we can get a quick evaluation of the model's performance. LOOCV (leave one out cross validation) is not computationally feasible due to the large number of observations.
+The purpose of this estimation is purely for the imputation of missing values, so prediction within this period is the highest priority at this point. While it would be desirable, this model is not intended to forecast future values. Evaluating the model's goodness of fit, we perform cross validation. Splitting the data randomly 60/40 into a training set (data for model estimation) and a test set (data set to test the goodness of fit), we can get a quick evaluation of the model's performance. Where total number of observations is $T$, we split the data into $N \approx 0.6 \times T$ and $M \approx 0.4 \times T$ so that $T=N+M$. Then, we have:
+$$\text{MSE}_\text{Tr} = \frac{1}{M} \sum_{j=1}^{M} (\hat{y_t}-y_t)^2$$
+LOOCV (leave one out cross validation) is not computationally feasible due to the large number of observations.
   
 Another decision which needs to be made is the starting date to model from. With multiple sensors being installed years later after the initial 28 sensors were installed and capturing data, we do not have a complete set of observations over the total observation period at each sensor location. Consequently, we will only use data from 2014 onwards, as this appears to be the most complete and comprehensive time period where the obeservations provide useful information.
 
@@ -221,6 +222,10 @@ The plan to approach this research project is as follows:
 - Development of a Shiny app: interface design, computation and data backend
 - Generation of a dynamic spatial model (if time permits)
 
+## Acknowledgements 
+
+
+
 ## References  
   1. City of Melbourne, _'About Melbourne Data'_, https://data.melbourne.vic.gov.au/about,  
    $\quad$ _accessed 18 April 2017_  
@@ -229,11 +234,17 @@ The plan to approach this research project is as follows:
    $\quad$ http://www.pedestrian.melbourne.vic.gov.au/pdf/CityofMelbournePedestrianCountingSystem.pdf  
   4 May 2015, _accessed 18 April 2017_  
   
+  
   3. Gould, Phillip G., Koehler, Anne B., Ord, J Keith., Snyder, Ralph D., Hyndman, Rob J.,  
    $\quad$ Vahid-Araghi, Farshid, (2008) _'Forecasting Time Series with Multiple Seasonal Patterns'_, European Journal of Operational Research 191(1), 207–220  
    
   4. Healey, Christopher G., (2012) _'Attention and Visual Memory in Visualization and Computer Graphics'_, IEEE Transactions on Visualization and Computer Graphics,  
   https://www.csc2.ncsu.edu/faculty/healey/download/tvcg.12a.pdf
+  
+  5. Wickham, Hadley, Chang, Winston  _'ggplot2'_ , http://ggplot2.tidyverse.org
+  
+  6. Wickham, Hadley, Francois, Romain  _'dplyr'_ , http://dplyr.tidyverse.org
+  
 \newpage
   
 # Appendix
