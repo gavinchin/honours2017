@@ -12,6 +12,7 @@ output:
 
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
+options(scipen = 100)
 library(readr)
 library(dplyr)
 library(purrr)
@@ -19,6 +20,8 @@ library(ggplot2)
 library(ggmap)
 library(knitr)
 library(lubridate)
+library(reshape2)
+
 ```
 
 ```{r, echo = FALSE, messages = FALSE, include=FALSE, cache=TRUE}
@@ -42,7 +45,7 @@ library(lubridate)
 ## Topic
 The City of Melbourne provides an open data platform to access council datasets, with the intention "to increase transparency, improve public services and support new economic and social initiatives"[^1]. This paper will focus primarily on the pedestrian data collected from pedestrian sensors placed throughout Melbourne's CBD. In particular, we want to be able to model the pedestrian traffic at different locations in the CBD, and forecast the traffic. In addition, we aim to have an interactive, dynamic data visualisation of the model to help us to understand how Melbourne operates. 
 
---------------------------------------------------------------------------------------------------------------------------------------
+---------------------------------------------------------------------------------------
 
 ## Background  
 
@@ -108,7 +111,7 @@ The main advantage of an animated/dynamic plot is that the changes over time can
 
 Another interactive visualisation featured on the Open Data Platform ( _Figure 4_ )also presents pedestrian counts as average daily volume on a map of Melbourne's CBD. Daily counts are mapped to a size aesthetic. However, this visualisation is very limited. While it useful to see the overall average activity at a sensor location relative to other locations in the CBD, it fails to present key characteristics of the time series (discussed later). It also lacks basic features such as a legend for what colour represents.
 
-```{r, out.width= '70%', echo = FALSE, fig.align= "center"}
+```{r, out.width= '60%', echo = FALSE, fig.align= "center"}
 include_graphics("../img/ped_vis_melb_2.PNG")
 ```
 
@@ -166,9 +169,9 @@ This estimation is computed for each sensor individually, as each location will 
 In equation \ref{poisson_model}, the variable `HDay` refers to a factor variable with 8 factor levels: the 7 days of the week and a factor for a public holiday. This is generated such that, if the day is a public holiday, then `HDay = "Holiday"`, regardless of the day of the week. Otherwise, `HDay` is the same as the factor for the day of the week.  
 Alternatively, it would be possible to allow for the effect of a public holiday by including a separate dummy variable. However, the likelihood of overfitting is greater, as we have a lack of public holidays as it is, let alone the lack of holidays falling on each day of the week. Similarly, the inclusion of the `Year` variable may introduce similar problems, especially at newer sensor locations with a lack of historical data.  
 
-The purpose of this estimation is purely for the imputation of missing values, so prediction within this period is the highest priority at this point. While it would be desirable, this model is not intended to forecast future values.
+The purpose of this estimation is purely for the imputation of missing values, so prediction within this period is the highest priority at this point. While it would be desirable, this model is not intended to forecast future values. Evaluating the model's goodness of fit, we perform cross validation. Splitting the data randomly 60/40 into a training set (data for model estimation) and a test set (data set to test the goodness of fit), we can get a quick evaluation of the model's performance. LOOCV (leave one out cross validation) is not computationally feasible due to the large number of observations.
   
-Another decision which needs to be made is the starting date to model from. With multiple sensors being installed years later after the initial 28 sensors were installed and capturing data, we do not have a complete set of observations over the total observation period at each sensor location. These locations will need to have pedestrian activity modelled based on neighbouring sensors to predict missing values for the time period prior to the sensor's installation and operation.  
+Another decision which needs to be made is the starting date to model from. With multiple sensors being installed years later after the initial 28 sensors were installed and capturing data, we do not have a complete set of observations over the total observation period at each sensor location. Consequently, we will only use data from 2014 onwards, as this appears to be the most complete and comprehensive time period where the obeservations provide useful information.
 
 ### Data Modelling
 
@@ -176,40 +179,91 @@ After the imputation of the missing values, we want to model the data (under the
 
 Weather may also have a casual effect by month of the year, due to seasonal weather. This could help explain differences in activity levels in summer compared to in winter in certain locations. This effect may also only have an effect in outdoor locations, and not on indoor locations. For example, Melbourne Central, a retail shopping area, is affected by `Month`, but most likely not weather. From _Figure 2_, we see that the average peak actvity on Fridays and Saturdays in January is significantly lower than other months of the year, while weather conditions are similar to December and February. This is most likely to be explained by typical seasonal consumer behaviour: peak consumer spending occurs in December due to Christmas gift shopping and Boxing Day sales. As a result, guilt ridden consumers tend to wind back retail spending during January. It can also be explained by people going on vacations out into regional/rural areas.  
 
-The use of weather data to improve forecasting performance would be ideal, due to the availability of weather forecasts compared to many other forms of data. Machine learning techniques will also be explored. In particular, clustering of sensor locations may be useful in identifying patterns at certain types of location, such as tourist attractions and shopping districts.  To evaluate the performance of the model, we look to minimise the RMSE (root mean square error):
-$$ \text{RMSE} = \sqrt{\frac{\sum_{t=1}^{T}(\hat{y_t} - y_t)^2}{T}}$$
+The use of weather data to improve forecasting performance would be ideal, due to the availability of weather forecasts compared to many other forms of data. Machine learning techniques will also be explored. In particular, clustering of sensor locations may be useful in identifying patterns at certain types of location, such as tourist attractions and shopping districts.  Different models for different types of locations may be used, and clustering may give insights as to which type of model to use. For example, the major city loop train stations, Flinders St, Southern Cross and Melbourne Central may have similar patterns. Then, we would expect to be able to use the same parameterisation of the model to estimate. After a model has been established, we need to evaluate the performance of the model. For this, we have decided to minimise the RMSFE (root mean square forecast error):
+$$ \text{RMSFE} = \sqrt{\frac{\sum_{t=1}^{T}(\hat{y_t} - y_t)^2}{T}}$$
+
+
 
 ### Data Visualisation  
 
-Once a model for forecasting the data has been established, an interactive web application to present the model will be developed. A key aspect which we want to implement is the ability for the end user to forecast pedestrian activity in the future. Improving on the currently available visualisations, the aesthetics of the visualisation will be designed with human perception theory taken into consideration. Preattentive processing theory will be considered to ensure certain elements of the visualisation allow for quick, preattentive identification of busy and quiet areas. Change blindness theory should also be reviewed in order to avoid misperception of relative changes in pedestrian activity.  
+Once a model for forecasting the data has been established, visual methods for illustrating the model need to be developed.
 
-For testing the proof of concept, a simple web application for viewing average hourly counts for a given month (for a given year) on a map was developed. 
+Improving on the currently available visualisations, the aesthetics of the visualisation will be designed with human perception theory taken into consideration. Preattentive processing theory will be considered to ensure certain elements of the visualisation allow for quick, preattentive identification of busy and quiet areas. Change blindness theory should also be reviewed in order to avoid misperception of relative changes in pedestrian activity.  
+
+
+
+### Shiny App Development  
+
+To implement the visual methods, an interactive web application to present the model will be developed.  
+
+For testing the proof of concept, a simple web application for viewing average hourly counts for a given month (for a given year) on a map was developed. A key aspect which we want to implement is the ability for the end user to forecast pedestrian activity in the future.
 ```{r, fig.align = 'center', echo = FALSE, out.width = "66%"}
 include_graphics("../img/ped_vis_melb_me.png")
 ```
 
-### Limitations  
+## Limitations  
+
+#### Data  
+The pedestrian sensor dataset is very limited in its spatial coverage. There is a possibility of data collected from WiFi devices being made available 
 
 #### Model  
 The model itself is currently limited to being treating the data as static panel data. A major reason for this is the nature of the data, where the patterns from year to year do not change.  
 
 #### Visualisation  
+Ideally, having a dynamic spatial model would allow us to visualise the pedestrian activity in areas not covered by the currently installed sensors. However, due to time constraints, the visualisation will most likely be based on a model of predictions of pedestrian counts at each sensor location.
 
+## Research Plan
+The plan to approach this research project is as follows:
 
-### Research Plan
 - Imputation that incorporates time and space
-- Predicitive model for each sensor
-- Visual methods for space-time counts
-- Shiny app - interface design, computation
-- dynamic
+- Creating a predicitive model for each sensor
+- Investiagtion of visual methods for space-time counts
+- Development of a Shiny app: interface design, computation and data backend
+- Generation of a dynamic spatial model (if time permits)
 
 ## References  
   1. City of Melbourne, _'About Melbourne Data'_, https://data.melbourne.vic.gov.au/about,  
-  _accessed 18 April 2017_  
+   $\quad$ _accessed 18 April 2017_  
+   
   2. City of Melbourne, _'Pedestrian Counting System'_,  
-  http://www.pedestrian.melbourne.vic.gov.au/pdf/CityofMelbournePedestrianCountingSystem.pdf 
+   $\quad$ http://www.pedestrian.melbourne.vic.gov.au/pdf/CityofMelbournePedestrianCountingSystem.pdf  
   4 May 2015, _accessed 18 April 2017_  
-  3. Healey, Christopher G.,  _'Attention and Visual Memory in Visualization and Computer Graphics'_, IEEE Transactions on Visualization and Computer Graphics,  
-  https://www.csc2.ncsu.edu/faculty/healey/download/tvcg.12a.pdf
   
+  3. Gould, Phillip G., Koehler, Anne B., Ord, J Keith., Snyder, Ralph D., Hyndman, Rob J.,  
+   $\quad$ Vahid-Araghi, Farshid, (2008) _'Forecasting Time Series with Multiple Seasonal Patterns'_, European Journal of Operational Research 191(1), 207–220  
+   
+  4. Healey, Christopher G., (2012) _'Attention and Visual Memory in Visualization and Computer Graphics'_, IEEE Transactions on Visualization and Computer Graphics,  
+  https://www.csc2.ncsu.edu/faculty/healey/download/tvcg.12a.pdf
+\newpage
+  
+# Appendix
+
+### Plots of time series at each sensor location over entire time span from 2009:  
+```{r, echo = FALSE, cache=TRUE}
+ped_plot <- aggregate(x = ped_df$Hourly_Counts, by = list("Sensor_ID" = ped_df$Sensor_ID, "Year" = ped_df$Year, "Month" = ped_df$Month), FUN = sum)
+
+ped_plot$counts <- ped_plot$x
+
+
+ped_plot$Time <- parse_date(paste(ped_plot$MDate, ped_plot$Month, ped_plot$Year, sep = "-"), format = "%D-%B-%Y")
+
+ped_plot$ID <- as.integer(ped_plot$Sensor_ID)
+
+ggplot(filter(ped_plot, ID < 10)) + geom_line(aes(x = Time, y = counts)) + facet_wrap(~ Sensor_ID)
+
+ggplot(filter(ped_plot, ID > 10, ID < 20)) + geom_line(aes(x = Time, y = counts)) + facet_wrap(~ Sensor_ID)
+
+ggplot(filter(ped_plot, ID > 20, ID < 30)) + geom_line(aes(x = Time, y = counts)) + facet_wrap(~ Sensor_ID)
+
+ggplot(filter(ped_plot, ID > 30, ID < 40)) + geom_line(aes(x = Time, y = counts)) + facet_wrap(~ Sensor_ID)
+
+ggplot(filter(ped_plot, ID > 40)) + geom_line(aes(x = Time, y = counts)) + facet_wrap(~ Sensor_ID)
+
+
+```
+
+Looking at the plots of the monthly aggregates, we can inspect the data quickly for obvious outliers. After detrending the time series for both the deterministic trends (non-zero mean) and stochastic trends (weekly and daily cycles), we expect to have stationary series.
+
+Note that the Sensor ID #41 is missing from the data for unknown reasons. 
+
   
