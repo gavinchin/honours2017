@@ -147,7 +147,7 @@ The consequence of having multiple seasonalities in the time series is that typi
 
 R is an open source programming language used for statistical computing. Shiny, made by RStudio, is a web application framework for R. It allows us to easily develop interactive web applications which interface with R in the background.  Combining these with open source packages in R, such as `ggplot2` or `plotly`, we can develop dynamic, interactive visualisations for data.  
 
-In particular, the objective of this project is to have the modelled pedestrian data presented as an interactive web app using Shiny. A key part which makes the visualisations interactive is the ability to have user inputs. This may be in the form of selecting a time period for the data, or changing how a certain plot is generated (size, colour, etc..). Another key 
+In particular, the objective of this project is to have the modelled pedestrian data presented as an interactive web app using Shiny. A key part which makes the visualisations interactive is the ability to have user inputs. This may be in the form of selecting a time period for the data, or changing how a certain plot is generated (size, colour, etc..). A feature which we can implement is an interactive forecast, allowing the user to change some of the input variables in the predicitive model.
 
 ## Methodology  
 
@@ -156,8 +156,8 @@ In particular, the objective of this project is to have the modelled pedestrian 
   The first step in performing the analysis is to clean the data. In particular, we need to impute the missing values at certain sensor locations. This is cause by two primary reasons: 1) new sensors being installed over time, and 2) sensors not operational for periods of time. A possible model which has been proposed is a GLM (generalized linear model) to estimate a Poisson regression: 
   
 \begin{align*}
-\text{HourlyCounts} & \sim\text{Year}\times\text{HDay}\times\text{Time}+\text{Month}\tag{1}\\
-\Rightarrow\qquad\lambda_{i} & =\beta_{0}+\beta_{1}\text{Year}\times\text{HDay}\times\text{Time}+\beta_{2}\text{Month}\\
+\text{HourlyCounts} & \sim\text{Year}\times\text{HDay}\times\text{Time}+\text{Month}\\
+\Rightarrow\qquad \log{\lambda_{i}} & =\beta_{0}+\beta_{1}\text{Year}\times\text{HDay}\times\text{Time}+\beta_{2}\text{Month}\\
 \text{HourlyCounts}_{i} & =\text{Poisson}\left(\lambda_{i}\right)
 \end{align*} 
   
@@ -207,7 +207,7 @@ Decisions regarding the design of the user interface also need to be made, speci
 ## Limitations  
 
 #### Data  
-The pedestrian sensor dataset is very limited in its spatial coverage. There is a possibility of data collected from WiFi devices being made available 
+The pedestrian sensor dataset is very limited in its spatial coverage. There is a possibility of data collected from WiFi devices being made available, which would increase both the spatial coverage and the resolution (counts aggregated every 15 minutes instead of hourly).
 
 #### Model  
 The model itself is currently limited to being treating the data as static panel data. A major reason for this is the nature of the data, where the patterns from year to year do not change.  
