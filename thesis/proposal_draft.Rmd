@@ -96,7 +96,7 @@ include_graphics("../img/ped_vis_melb.PNG")
 ```
 
 \begin{center}
-\textbf{Figure 3}: Pedestrian Counting System Visualisation from www.pedestrian.melbourne.vic.gov.au - The UI allows the user to choose specific dates and hours of the day to visualise on a 3D perspective map
+\textbf{Figure 3}: Pedestrian Counting System Visualisation from www.pedestrian.melbourne.vic.gov.au - The UI allows the user to choose specific dates and hours of the day to visualise on a 3D perspective map. The visualisation can also animate pedestrian activity, allowing for changes over time to be easily seen.
 
 \end{center}  
   
@@ -213,7 +213,7 @@ The pedestrian sensor dataset is very limited in its spatial coverage. There is 
 The model itself is currently limited to being treating the data as static panel data. A major reason for this is the nature of the data, where the patterns from year to year do not change.  
 
 #### Visualisation  
-Ideally, having a dynamic spatial model would allow us to visualise the pedestrian activity in areas not covered by the currently installed sensors. However, due to time constraints, the visualisation will most likely be based on a model of predictions of pedestrian counts at each sensor location.
+Ideally, having a dynamic spatial model would allow us to visualise the pedestrian activity in areas not covered by the currently installed sensors. However, due to time constraints, the visualisation will most likely be based on a model of predictions of pedestrian counts at each sensor location. Improvements to the quality of the map can be made with utilisation of the R package `leaflet`. Other packages being explored for visualisations also include `plotly`.
 
 ## Research Plan
 The plan to approach this research project is as follows:
