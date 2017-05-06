@@ -127,7 +127,7 @@ ggplot(bsplot) + geom_line(aes(x = MTime, y = Hourly_Counts)) +
       xlab("Hour of the Month") + ylab("Hourly Counts") + theme_light()
 ```
 \begin{center}
-\textbf{Figure 5}:  Sample of hourly counts of pedestrians at Flagstaff Station (June 2016)
+\textbf{Figure 5}:  Sample of hourly counts of pedestrians at Flagstaff Station (June 2016). Two repeating cycles can be seen, with a public holiday on 13 July showing atypical pedestrian counts for a weekday (Monday).
 \end{center}  
 From _Figure 5_, we can observe multiple characteristics of the time series. Firstly, we see the weekly cycle, where weekdays (Monday to Friday) have lots of activity and weekends (Saturday and Sunday) are relatively quiet. This would be highly suggestive that Flagstaff Station is primarily used by city office workers. Another phenomenon we observe is the effect of a public holiday. Looking near the middle of the month (Monday, 13 June 2016), we have the Queen's Birthday public holiday. We must also note that, prior to the start of 2016, Flagstaff Station was not operating on weekends, nor public holidays.
 ```{r, message= FALSE, warning= FALSE, fig.height=3, echo = FALSE, fig.align= "center"}
@@ -228,7 +228,7 @@ The plan to approach this research project is as follows:
 
 I would like to thank my supervisor, Dianne Cook, for her help and support throughout this project. I would also like to thank Earo Wang for coming along to our meetings to help out, in particular for her code for imputing missing values.
 
-This proposal is written in R Markdown (`.Rmd`) using RStudio and the code used to produce the results outputted are embedded in this document. The packages used for this proposal are: `readr, dplyr, ggplot2, ggmap, knitr`
+This proposal is written in R Markdown (`.Rmd`) using RStudio and the code used to produce the results outputted are embedded in this document. The packages used for this proposal are: `readr, dplyr, ggplot2, ggmap, knitr`, while packages `lubridate, shiny` are also being used for the project iteself. 
 
 ## References  
   1. City of Melbourne, _'About Melbourne Data'_, https://data.melbourne.vic.gov.au/about,  
@@ -244,12 +244,17 @@ This proposal is written in R Markdown (`.Rmd`) using RStudio and the code used 
    
   4. Healey, Christopher G., (2012) _'Attention and Visual Memory in Visualization and Computer Graphics'_, IEEE Transactions on Visualization and Computer Graphics,  
   https://www.csc2.ncsu.edu/faculty/healey/download/tvcg.12a.pdf
-  
-  5. Wickham, Hadley, Chang, Winston,  _'ggplot2'_ , http://ggplot2.tidyverse.org
-  
-  6. Wickham, Hadley, Francois, Romain,  _'dplyr'_ , http://dplyr.tidyverse.org
+
+  5. Wickham, Hadley, Francois, Romain,  _'dplyr'_ , http://dplyr.tidyverse.org
+
+  6. Wickham, Hadley, Chang, Winston,  _'ggplot2'_ , http://ggplot2.tidyverse.org
   
   7. Wickham, Hadley, Kahle, David J., _'ggmap'_ , https://github.com/dkahle/ggmap
+  
+  8. Wickham, Hadley, Hester, Jim, Francois, Romain, _'readr'_ , http://readr.tidyverse.org
+  
+  9. Xie, Yihui, _'knitr'_ , https://yihui.name/knitr/
+
   
   
 \newpage
@@ -258,7 +263,7 @@ This proposal is written in R Markdown (`.Rmd`) using RStudio and the code used 
 
 ### Plots of time series at each sensor location over entire time span from 2009:  
 
-```{r, echo = FALSE, cache = TRUE, fig.height = 2.5}
+```{r, echo = FALSE}
 ped_plot <- aggregate(x = ped_df$Hourly_Counts, by = list("Sensor_ID" = ped_df$Sensor_ID, "Year" = ped_df$Year, "Month" = ped_df$Month), FUN = sum)
 
 ped_plot$counts <- ped_plot$x
