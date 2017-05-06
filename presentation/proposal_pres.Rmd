@@ -1,29 +1,27 @@
 ---
 title: "Modelling the City of Melbourne Pedestrian Data"
+subtitle: "Thesis Proposal"
 author: "Gavin Chin, supervised by Di Cook"
-date: "04/05/2017"
-output: ioslides_presentation
+date: "8 May 2016"
+output:
+  xaringan::moon_reader:
+    lib_dir: libs
+    nature:
+      highlightStyle: github
+      highlightLines: true
+      countIncrementalSlides: false
 ---
 
-```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = FALSE)
+```{r setup, include=FALSE, echo = FALSE, warning=FALSE, message=FALSE}
+options(htmltools.dir.version = FALSE)
 library(readr)
 library(dplyr)
-library(purrr)
 library(ggplot2)
 library(ggmap)
 library(knitr)
+library(pander)
 library(lubridate)
-
   ped_df <- read_csv("../data/Pedestrian_volume__updated_monthly_.csv")
-      ped_df$Year <- as.factor(ped_df$Year)
-      ped_df$Month <- as.factor(ped_df$Month)
-      ped_df$Month <- factor(ped_df$Month, levels(ped_df$Month)[c(5,4,8,1,9,7,6,2,12,11,10,3)])
-      ped_df$Time <- as.factor(ped_df$Time)
-      ped_df$Timeplot <- as.integer(ped_df$Time)
-      ped_df$MTime <- as.integer(ped_df$Time) + ((as.integer(ped_df$Mdate)-1) * 24)
-      ped_df$Day <- as.factor(ped_df$Day)
-      ped_df$Day <- factor(ped_df$Day, levels(ped_df$Day)[c(2,6,7,5,1,3,4)])
       
   ped_loc <- read_csv("../data/Pedestrian_sensor_locations.csv")
   
@@ -32,14 +30,15 @@ library(lubridate)
                                 zoom=14)
 ```
 
-## Introduction
+class: center
 
-The City of Melbourne provides an open data platform to access council datasets through its Open Data Platform  
-This project focuses primarily on the pedestrian data collected from pedestrian sensors placed throughout Melbourne's CBD
+# Introduction
 
-## Pedestrian Sensors
+The City of Melbourne has an Open Data Platform which makes council data available to the public  
 
-```{r, echo = F, fig.align= "center", cache=TRUE}
+This project will focus on the pedestrian sensor data
+
+```{r, echo = FALSE, fig.height=5}
 ggmap(melb) + geom_point(aes(x = Longitude, y = Latitude), data = ped_loc, colour = "red", alpha = 0.7) +
               labs(title = "Melbourne Pedestrian Sensor Locations") +
               xlab(NULL) + ylab(NULL) +
@@ -48,10 +47,357 @@ ggmap(melb) + geom_point(aes(x = Longitude, y = Latitude), data = ped_loc, colou
                     axis.ticks = element_blank())
 ```
 
-## Time Series of Pedestrian Activity
 
-```{r, message= FALSE, warning= FALSE, fig.align= "center"}
-ped_df %>% filter(Year == "2016", Month == "June", Mdate < 25, Sensor_ID == "13") %>%
-  ggplot() + geom_line(aes(x = MTime, y = Hourly_Counts)) +
+---
+
+# How is the data collected?
+
+The City of Melbourne has `r nrow(ped_loc)` sensors installed around Melbourne's CBD  
+These sensors are positioned under an awning or street pole, and count the number of people passing each hour
+
+---
+
+# What does the data look like?
+
+```{r}
+glimpse(ped_df)
+```
+
+```{r, echo = FALSE}
+      ped_df$Year <- as.factor(ped_df$Year)
+      ped_df$Month <- as.factor(ped_df$Month)
+      ped_df$Month <- factor(ped_df$Month, levels(ped_df$Month)[c(5,4,8,1,9,7,6,2,12,11,10,3)])
+      ped_df$Time <- as.factor(ped_df$Time)
+      ped_df$Timeplot <- as.integer(ped_df$Time)
+      ped_df$MTime <- as.integer(ped_df$Time) + ((as.integer(ped_df$Mdate)-1) * 24)
+      ped_df$Day <- as.factor(ped_df$Day)
+      ped_df$Day <- factor(ped_df$Day, levels(ped_df$Day)[c(2,6,7,5,1,3,4)])
+
+```
+
+
+---
+
+class: center, middle
+
+## Time series at each sensor location
+
+```{r, message= FALSE, warning= FALSE, fig.height = 5, fig.width = 12, echo = FALSE, fig.align= "center"}
+bsplot <- ped_df %>% filter(Year == "2016", Month == "June", Mdate < 25, Sensor_ID == "13")
+ggplot(bsplot) + geom_line(aes(x = MTime, y = Hourly_Counts)) + ggtitle("Hourly Pedestrian Count at Flagstaff Station", subtitle = "during June 2016") +
       xlab("Hour of the Month") + ylab("Hourly Counts") + theme_light()
 ```
+
+
+---
+# Why do we want to model pedestrian traffic?
+
+Being able to predict how many people pass through a certain location can be used by the government sector as well as the private sector  
+
+Different ways it can be used: 
+
+  Government example uses:  
+    - Infrastructure planning
+    - Security planning
+  Private example uses:
+    - Marketing campaign planning
+    - Resource management
+    - Investment planning
+  
+  and many other various ways..
+
+
+---
+class: center, inverse
+
+# Methodology
+
+The project has been split into multiple steps:  
+  - Data Cleaning
+  - Modelling
+  - Visualisation
+  - Shiny app development
+  
+---
+
+# Data Cleaning
+
+While the data variables themselves are relatively tidy, there is a large number of observations we need to impute
+
+--
+
+```{r, echo = FALSE, fig.align = "center", fig.height=6, fig.width=12}
+ped_plot <- aggregate(x = ped_df$Hourly_Counts, by = list("Sensor_ID" = ped_df$Sensor_ID, "Year" = ped_df$Year, "Month" = ped_df$Month), FUN = sum)
+
+ped_plot$counts <- ped_plot$x
+
+
+ped_plot$Time <- parse_date(paste(ped_plot$MDate, ped_plot$Month, ped_plot$Year, sep = "-"), format = "%D-%B-%Y")
+
+ped_plot$ID <- as.integer(ped_plot$Sensor_ID)
+
+ped_plot$Sensor_ID <- as.factor(ped_plot$Sensor_ID)
+
+ggplot(filter(ped_plot)) + geom_line(aes(x = Time, y = counts, colour = Sensor_ID)) + theme_light() + theme(legend.position = "none") + labs(x = "Year", y = "Pedestrian Counts") + ggtitle("Monthly Total Counts by Sensor")
+
+```
+
+
+
+---
+
+# R Code
+
+```{r comment='#'}
+# a boring regression
+fit = lm(dist ~ 1 + speed, data = cars)
+coef(summary(fit))
+dojutsu = c('地爆天星', '天照', '加具土命', '神威', '須佐能乎', '無限月読')
+grep('天', dojutsu, value = TRUE)
+```
+
+---
+
+# R Plots
+
+```{r cars, fig.height=4, dev='svg'}
+par(mar = c(4, 4, 1, .1))
+plot(cars, pch = 19, col = 'darkgray', las = 1)
+abline(fit, lwd = 2)
+```
+
+---
+
+# HTML Widgets
+
+I have not thoroughly tested HTML widgets against **xaringan**. Some may work well, and some may not. It is a little tricky.
+
+Similarly, the Shiny mode (`runtime: shiny`) does not work. I might get these issues fixed in the future, but these are not of high priority to me. I never turn my presentation into a Shiny app. When I need to demonstrate more complicated examples, I just launch them separately. It is convenient to share slides with other people when they are plain HTML/JS applications.
+
+See the next page for two HTML widgets.
+
+---
+
+```{r out.width='100%', fig.height=6, eval=require('leaflet')}
+library(leaflet)
+leaflet() %>% addTiles() %>% setView(mean(ped_loc$Longitude), mean(ped_loc$Latitude), zoom = 14)
+```
+
+---
+
+```{r eval=require('DT'), tidy=FALSE}
+DT::datatable(
+  head(iris, 10),
+  fillContainer = FALSE, options = list(pageLength = 5)
+)
+```
+
+---
+
+# Some Tips
+
+- When you use the "Infinite Moon Reader" addin in RStudio, your R session will be blocked by default. You can click the red button on the right of the console to stop serving the slides, or use the _daemonized_ mode so that it does not block your R session. To do the latter, you can set the option
+
+    ```r
+    options(servr.daemon = TRUE)
+    ```
+    
+    in your current R session, or in `~/.Rprofile` so that it is applied to all future R sessions. I do the latter by myself.
+    
+    To know more about the web server, see the [**servr**](https://github.com/yihui/servr) package.
+
+--
+
+- Do not forget to try the `yolo` option of `xaringan::moon_reader`.
+
+    ```yaml
+    output:
+      xaringan::moon_reader:
+        yolo: true
+    ```
+
+---
+
+# Some Tips
+
+- Slides can be automatically played if you set the `autoplay` option under `nature`, e.g. go to the next slide every 30 seconds (this can be useful for lightning talks):
+
+    ```yaml
+    output:
+      xaringan::moon_reader:
+        nature:
+          autoplay: 30000
+    ```
+
+--
+
+- The option `highlightLines: true` of `nature` will highlight code lines that start with `*` or are wrapped in `{{ }}`;
+
+    ```yaml
+    output:
+      xaringan::moon_reader:
+        nature:
+          highlightLines: true
+    ```
+
+    See examples on the next page.
+
+---
+
+# Some Tips
+
+
+.pull-left[
+An example using a leading `*`:
+
+    ```r
+    if (TRUE) {
+    ** message("Very important!")
+    }
+    ```
+Output:
+```r
+if (TRUE) {
+* message("Very important!")
+}
+```
+
+This is invalid R code, so it is a plain fenced code block that is not executed.
+]
+
+.pull-right[
+An example using `{{}}`:
+
+    `r ''````{r tidy=FALSE}
+    if (TRUE) {
+    *{{ message("Very important!") }}
+    }
+    ```
+Output:
+```{r tidy=FALSE}
+if (TRUE) {
+{{ message("Very important!") }}
+}
+```
+
+It is valid R code so you can run it.
+]
+
+---
+
+# Some Tips
+
+- To make slides work offline, you need to download a copy of remark.js in advance, because **xaringan** uses the online version by default (see the help page `?xaringan::moon_reader`).
+
+- You can use `xaringan::summon_remark()` to download the latest or a specified version of remark.js. By default, it is downloaded to `libs/remark-latest.min.js`.
+
+- Then change the `chakra` option in YAML to point to this file, e.g.
+
+    ```yaml
+    output:
+      xaringan::moon_reader:
+        chakra: libs/remark-latest.min.js
+    ```
+
+- If you used Google fonts in slides (the default theme uses _Yanone Kaffeesatz_, _Droid Serif_, and _Source Code Pro_), they won't work offline unless you download or install them locally. The Heroku app [google-webfonts-helper](https://google-webfonts-helper.herokuapp.com/fonts) can help you download fonts and generate the necessary CSS.
+
+
+---
+
+# CSS
+
+Among all options in `xaringan::moon_reader`, the most challenging but perhaps also the most rewarding one is `css`, because it allows you to customize the appearance of your slides using any CSS rules or hacks you know.
+
+You can see the default CSS file [here](https://github.com/yihui/xaringan/blob/master/inst/rmarkdown/templates/xaringan/resources/example.css). You can completely replace it with your own CSS files, or define new rules to override the default.
+
+---
+
+# CSS
+
+For example, suppose you want to change the font for code from the default "Source Code Pro" to "Ubuntu Mono". You can create a CSS file named, say, `ubuntu-mono.css`:
+
+```css
+@import url(https://fonts.googleapis.com/css?family=Ubuntu+Mono:400,700,400italic);
+
+.remark-code, .remark-inline-code { font-family: 'Ubuntu Mono'; }
+```
+
+Then set the `css` option in the YAML metadata:
+
+```yaml
+output:
+  xaringan::moon_reader:
+    css: ["default", "ubuntu-mono.css"]
+```
+
+Here I assume `ubuntu-mono.css` is under the same directory as your Rmd.
+
+---
+class: inverse, middle, center
+background-image: url(https://upload.wikimedia.org/wikipedia/commons/3/39/Naruto_Shiki_Fujin.svg)
+background-size: contain
+
+# Naruto
+
+---
+background-image: url(https://upload.wikimedia.org/wikipedia/commons/b/be/Sharingan_triple.svg)
+background-size: 100px
+background-position: 90% 8%
+
+# Sharingan
+
+The R package name **xaringan** was derived<sup>1</sup> from **Sharingan**, a dōjutsu in the Japanese anime _Naruto_ with two abilities:
+
+- the "Eye of Insight"
+
+- the "Eye of Hypnotism"
+
+I think a presentation is basically a way to communicate insights to the audience, and a great presentation may even "hypnotize" the audience.<sup>2,3</sup>
+
+.footnote[
+[1] In Chinese, the pronounciation of _X_ is _Sh_ /ʃ/ (as in _shrimp_). Now you should have a better idea of how to pronounce my last name _Xie_.
+
+[2] By comparison, bad presentations only put the audience to sleep.
+
+[3] Personally I find that setting background images for slides is a killer feature of remark.js. It is an effective way to bring visual impact into your presentations.
+]
+
+---
+
+# Naruto terminology
+
+The **xaringan** package borrowed a few terms from Naruto, such as
+
+- [Sharingan](http://naruto.wikia.com/wiki/Sharingan) (写輪眼; the package name)
+
+- The [moon reader](http://naruto.wikia.com/wiki/Moon_Reader) (月読; an attractive R Markdown output format)
+
+- [Chakra](http://naruto.wikia.com/wiki/Chakra) (查克拉; the path to the remark.js library, which is the power to drive the presentation)
+
+- [Nature transformation](http://naruto.wikia.com/wiki/Nature_Transformation) (性質変化; transform the chakra by setting different options)
+
+- The [infinite moon reader](http://naruto.wikia.com/wiki/Infinite_Tsukuyomi) (無限月読; start a local web server to continuously serve your slides)
+
+- The [summoning technique](http://naruto.wikia.com/wiki/Summoning_Technique) (download remark.js from the web)
+
+You can click the links to know more about them if you want. The jutsu "Moon Reader" may seem a little evil, but that does not mean your slides are evil.
+
+---
+
+class: center
+
+# Hand seals (印)
+
+Press `h` or `?` to see the possible ninjutsu you can use in remark.js.
+
+![](https://upload.wikimedia.org/wikipedia/commons/7/7e/Mudra-Naruto-KageBunshin.svg)
+
+---
+
+class: center, middle
+
+# Thanks!
+
+Slides created via the R package [**xaringan**](https://github.com/yihui/xaringan).
+
+The chakra comes from [remark.js](https://remarkjs.com), [**knitr**](http://yihui.name/knitr), and [R Markdown](https://rmarkdown.rstudio.com).
