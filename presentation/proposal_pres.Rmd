@@ -57,6 +57,25 @@ These sensors are positioned under an awning or street pole, and count the numbe
 
 ---
 
+
+# Why do we want to model pedestrian traffic?
+
+### Being able to predict how many people pass through a certain location can be used by the government sector as well as the private sector  
+
+#### Different ways it can be used: 
+
+  Government example uses:  
+    - Infrastructure planning
+    - Security planning
+  Private example uses:
+    - Marketing campaign planning
+    - Resource management
+    - Investment planning
+  
+  and many other various ways..
+
+---  
+  
 # What does the data look like?
 
 ```{r}
@@ -95,22 +114,20 @@ ggplot(bsplot) + geom_line(aes(x = MTime, y = Hourly_Counts)) + ggtitle("Hourly 
 
 ---
 
-# Why do we want to model pedestrian traffic?
+## Multiple seasonal patterns
 
-### Being able to predict how many people pass through a certain location can be used by the government sector as well as the private sector  
-
-#### Different ways it can be used: 
-
-  Government example uses:  
-    - Infrastructure planning
-    - Security planning
-  Private example uses:
-    - Marketing campaign planning
-    - Resource management
-    - Investment planning
-  
-  and many other various ways..
-
+#### For example, at Flagstaff Station, we notice a couple of key patterns:
+- Weekly cycle
+```{r, message= FALSE, warning= FALSE, fig.height = 4, fig.width = 12, echo = FALSE, fig.align= "center"}
+bsplot <- ped_df %>% filter(Year == "2016", Month == "June", Mdate < 25, Sensor_ID == "13")
+ggplot(bsplot) + geom_line(aes(x = MTime, y = Hourly_Counts)) + ggtitle("Hourly Pedestrian Count at Flagstaff Station", subtitle = "during June 2016") +
+      xlab("Hour of the Month") + ylab("Hourly Counts") + theme_light()
+```
+- Daily sub-cycle
+```{r, message= FALSE, warning= FALSE, fig.height=3, echo = FALSE, fig.align= "center"}
+ggplot(filter(ped_df, Sensor_ID == "13")) + geom_path(aes(x = as.integer(Time), y = Hourly_Counts, colour = Day), alpha = 0.2) +
+      xlab("Hour of the Day") + ylab("Hourly Counts") + theme_light()
+```
 
 ---
 class: inverse, middle, center
@@ -166,3 +183,10 @@ This can be expressed as:
 $$\text{HourlyCounts} \sim\text{Year}\times\text{HDay}\times\text{Time}+\text{Month}$$
 $$\Rightarrow\qquad \log{\lambda_{i}}  =\beta_{0}+\beta_{1}\text{Year}\times\text{HDay}\times\text{Time}+\beta_{2}\text{Month}$$
 $$\text{HourlyCounts}_{i}  =\text{Poisson}\left(\lambda_{i}\right)$$
+
+--
+
+This needs to be estimated for each location, due to the different characteristics
+
+---
+
