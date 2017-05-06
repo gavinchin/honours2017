@@ -6,7 +6,8 @@ author:
 - "Gavin Chin"
 - "supervised by Dianne Cook"
 output:
-  pdf_document: default
+  pdf_document: 
+    keep_tex: yes
   html_document: default
 ---
 
@@ -42,10 +43,7 @@ library(knitr)
 ## Topic
 The City of Melbourne provides an open data platform to access council datasets, with the intention "to increase transparency, improve public services and support new economic and social initiatives"[^1]. This paper will focus primarily on the pedestrian data collected from pedestrian sensors placed throughout Melbourne's CBD. In particular, we want to be able to model the pedestrian traffic at different locations in the CBD, and forecast the traffic. In addition, we aim to have an interactive, dynamic data visualisation of the model to help us to understand how Melbourne operates. 
 
----------------------------------------------------------------------------------------
-
 ## Background  
-
 
 #### The Data: City of Melbourne Pedestrian Data  
 
@@ -65,7 +63,7 @@ ggmap(melb) + geom_point(aes(x = Longitude, y = Latitude), data = ped_loc, colou
                     axis.ticks = element_blank())
 ```
 \begin{center}
-Figure 1:  Locations of all pedestrian sensors around Melbourne's CBD as at April 2017 - Plotted using `ggmap`, the red points map the locations of the sensors. The majority of the pedestrian sensors are placed in the eastern side of the CBD, particularly along Swanston St
+\textbf{Figure 1}:  Locations of all pedestrian sensors around Melbourne's CBD as at April 2017 - Plotted using `ggmap`, the red points map the locations of the sensors. The majority of the pedestrian sensors are placed in the eastern side of the CBD, particularly along Swanston St
 \end{center}  
 
 These sensors are placed above flowing traffic either under an awning or on a street pole, recording movements from multiple directions. The pedestrian counting system was introduced by the council with the objectives to help inform decisions about urban planning and management, identify opportunities to improve city walkability and transport, to measure the impact of events and specific marketing campaings, as well as to monitor retail activity and aiding the business community with marketing and resource management.  
@@ -82,7 +80,7 @@ Each observation in the data contains three main variables: the specific hour (d
 ```
   
 \begin{center}
-Figure 2: Smoothed pedestrian counts for Melbourne Central by day of the week and month of the year
+\textbf{Figure 2}: Smoothed pedestrian counts for Melbourne Central by day of the week and month of the year
 \end{center}  
 
 We are faced with two large limitations due to the nature of the collection of the data. Firstly, pedestrian counts are aggregated hourly. This does not allow for highly accurate modelling. Secondly, we note that there is a lack of sensors, and hence pedestrian data, for the area between Spencer Street and Elizabeth Street. The majority of the sensors have been installed by the City of Melbourne along Swanston Street. The consequence of this is the potential to make misleading conclusions regarding the pedestrian activity in that area. Plotting pedestrian traffic of the entire CBD may give the inaccurate perception of very low/no pedestrian activity.  
@@ -98,7 +96,7 @@ include_graphics("../img/ped_vis_melb.PNG")
 ```
 
 \begin{center}
-Figure 3: Pedestrian Counting System Visualisation from www.pedestrian.melbourne.vic.gov.au - The UI allows the user to choose specific dates and hours of the day to visualise on a 3D perspective map
+\textbf{Figure 3}: Pedestrian Counting System Visualisation from www.pedestrian.melbourne.vic.gov.au - The UI allows the user to choose specific dates and hours of the day to visualise on a 3D perspective map
 
 \end{center}  
   
@@ -114,7 +112,7 @@ include_graphics("../img/ped_vis_melb_2.PNG")
 ```
 
 \begin{center}
-Figure 4: An interactive data visualisation map created using Tableau by Boreak Silk. Average daily volumes are mapped to size, and colours map a positive or negative change in the average for the period compared to a specified reference period. Note the lack of a legend to help users understand how to interpret different aesthetic mapping of the visualisation.
+\textbf{Figure 4}: An interactive data visualisation map created using Tableau by Boreak Silk. Average daily volumes are mapped to size, and colours map a positive or negative change in the average for the period compared to a specified reference period. Note the lack of a legend to help users understand how to interpret different aesthetic mapping of the visualisation.
 \end{center}
 _Source:https://public.tableau.com/profile/boreak.silk#!/vizhome/PedestrianactivityinMelbourne/Dailyvolumesandcomparison _
 
@@ -129,7 +127,7 @@ ggplot(bsplot) + geom_line(aes(x = MTime, y = Hourly_Counts)) +
       xlab("Hour of the Month") + ylab("Hourly Counts") + theme_light()
 ```
 \begin{center}
-Figure 5:  Sample of hourly counts of pedestrians at Flagstaff Station (June 2016)
+\textbf{Figure 5}:  Sample of hourly counts of pedestrians at Flagstaff Station (June 2016)
 \end{center}  
 From _Figure 5_, we can observe multiple characteristics of the time series. Firstly, we see the weekly cycle, where weekdays (Monday to Friday) have lots of activity and weekends (Saturday and Sunday) are relatively quiet. This would be highly suggestive that Flagstaff Station is primarily used by city office workers. Another phenomenon we observe is the effect of a public holiday. Looking near the middle of the month (Monday, 13 June 2016), we have the Queen's Birthday public holiday. We must also note that, prior to the start of 2016, Flagstaff Station was not operating on weekends, nor public holidays.
 ```{r, message= FALSE, warning= FALSE, fig.height=3, echo = FALSE, fig.align= "center"}
@@ -138,7 +136,7 @@ ggplot(filter(ped_df, Sensor_ID == "13")) + geom_path(aes(x = as.integer(Time), 
 
 ```
 \begin{center}
- **Figure 6**:  Hourly counts at Flagstaff Station, with colour mapped to day of the week - There are two distinctly different daily patterns. The typical weekday traffic pattern has two peaks at 9am and 5pm, while it remains relatively quiet over the weekend as seen by the flatter lines. Also note that the second peak is lower than the first peak on average.
+ \textbf{Figure 6}:  Hourly counts at Flagstaff Station, with colour mapped to day of the week - There are two distinctly different daily patterns. The typical weekday traffic pattern has two peaks at 9am and 5pm, while it remains relatively quiet over the weekend as seen by the flatter lines. Also note that the second peak is lower than the first peak on average.
 \end{center}  
 
 In _Figure 6_, we see that, within the weekly cycle, each day has a daily sub-cycle. We can see the patterns we observe on a weekly cycle here when we seperately estimate by the day of the week. What we can see more clearly is also the difference in the pattern of pedestrian activity for each hour of the day, where there are two main peaks per weekday. This is consistent with the peak travel times for people commuting to and from work.  
@@ -180,8 +178,8 @@ After the imputation of the missing values, we want to model the data (under the
 
 Weather may also have a casual effect by month of the year, due to seasonal weather. This could help explain differences in activity levels in summer compared to in winter in certain locations. This effect may also only have an effect in outdoor locations, and not on indoor locations. For example, Melbourne Central, a retail shopping area, is affected by `Month`, but most likely not weather. From _Figure 2_, we see that the average peak actvity on Fridays and Saturdays in January is significantly lower than other months of the year, while weather conditions are similar to December and February. This is most likely to be explained by typical seasonal consumer behaviour: peak consumer spending occurs in December due to Christmas gift shopping and Boxing Day sales. As a result, guilt ridden consumers tend to wind back retail spending during January. It can also be explained by people going on vacations out into regional/rural areas.  
 
-The use of weather data to improve forecasting performance would be ideal, due to the availability of weather forecasts compared to many other forms of data. Machine learning techniques will also be explored. In particular, clustering of sensor locations may be useful in identifying patterns at certain types of location, such as tourist attractions and shopping districts.  Different models for different types of locations may be used, and clustering may give insights as to which type of model to use. For example, the major city loop train stations, Flinders St, Southern Cross and Melbourne Central may have similar patterns. Then, we would expect to be able to use the same parameterisation of the model to estimate. After a model has been established, we need to evaluate the performance of the model. For this, we have decided to minimise the RMSFE (root mean square forecast error):
-$$ \text{RMSFE} = \sqrt{\frac{\sum_{t=1}^{T}(\hat{y_t} - y_t)^2}{T}}$$
+The use of weather data to improve forecasting performance would be ideal, due to the availability of weather forecasts compared to many other forms of data. Machine learning techniques will also be explored. In particular, clustering of sensor locations may be useful in identifying patterns at certain types of location, such as tourist attractions and shopping districts.  Different models for different types of locations may be used, and clustering may give insights as to which type of model to use. For example, the major city loop train stations, Flinders St, Southern Cross and Melbourne Central may have similar patterns. Then, we would expect to be able to use the same parameterisation of the model to estimate. After a model has been established, we need to evaluate the performance of the model. For this, we have decided to minimise the RMSFE (root mean square forecast error). Assuming that we estimate the model with $T$ observations, and we have $k$ points to forecast (so we need to have $T+k$ observations available), then our RMSFE is:
+$$ \text{RMSFE} = \sqrt{\frac{\sum_{t=T+1}^{T+k}(\hat{y_t} - y_t)^2}{k}}$$
 
 
 
@@ -231,6 +229,7 @@ The plan to approach this research project is as follows:
 I would like to thank my supervisor, Dianne Cook, for her help and support throughout this project. I would also like to thank Earo Wang for coming along to our meetings to help out, in particular for her code for imputing missing values.
 
 This proposal is written in R Markdown (`.Rmd`) using RStudio and the code used to produce the results outputted are embedded in this document. The packages used for this proposal are: `readr, dplyr, ggplot2, ggmap, knitr`
+
 ## References  
   1. City of Melbourne, _'About Melbourne Data'_, https://data.melbourne.vic.gov.au/about,  
    $\quad$ _accessed 18 April 2017_  
@@ -258,7 +257,8 @@ This proposal is written in R Markdown (`.Rmd`) using RStudio and the code used 
 # Appendix
 
 ### Plots of time series at each sensor location over entire time span from 2009:  
-```{r, echo = FALSE, cache=TRUE, out.height = "70%"}
+
+```{r, echo = FALSE, cache = TRUE, fig.height = 2.5}
 ped_plot <- aggregate(x = ped_df$Hourly_Counts, by = list("Sensor_ID" = ped_df$Sensor_ID, "Year" = ped_df$Year, "Month" = ped_df$Month), FUN = sum)
 
 ped_plot$counts <- ped_plot$x
@@ -278,9 +278,7 @@ ggplot(filter(ped_plot, ID > 30, ID < 40)) + geom_line(aes(x = Time, y = counts)
 
 ggplot(filter(ped_plot, ID > 40)) + geom_line(aes(x = Time, y = counts)) + facet_wrap(~ Sensor_ID)
 
-
 ```
-
 Looking at the plots of the monthly aggregates, we can inspect the data quickly for obvious outliers. After detrending the time series for both the deterministic trends (non-zero mean) and stochastic trends (weekly and daily cycles), we expect to have a stationary series. Anything outside these "expected" trends from the cycles could indicate an unobserved variable (such as weather) having a casual effect on the pedestrian count. Large "dips" in the series, or odd values over a long time span may be indicative of missing values which need to be imputed.
 
 Note that the Sensor ID #41 is missing from the data for unknown reasons. 
