@@ -18,8 +18,6 @@ library(dplyr)
 library(ggplot2)
 library(ggmap)
 library(knitr)
-library(lubridate)
-library(reshape2)
 
 ```
 
@@ -67,7 +65,7 @@ ggmap(melb) + geom_point(aes(x = Longitude, y = Latitude), data = ped_loc, colou
                     axis.ticks = element_blank())
 ```
 \begin{center}
-Figure 1:  Locations of all pedestrian sensors around Melbourne's CBD as at April 2017
+Figure 1:  Locations of all pedestrian sensors around Melbourne's CBD as at April 2017 - Plotted using `ggmap`, the red points map the locations of the sensors. The majority of the pedestrian sensors are placed in the eastern side of the CBD, particularly along Swanston St
 \end{center}  
 
 These sensors are placed above flowing traffic either under an awning or on a street pole, recording movements from multiple directions. The pedestrian counting system was introduced by the council with the objectives to help inform decisions about urban planning and management, identify opportunities to improve city walkability and transport, to measure the impact of events and specific marketing campaings, as well as to monitor retail activity and aiding the business community with marketing and resource management.  
@@ -100,7 +98,8 @@ include_graphics("../img/ped_vis_melb.PNG")
 ```
 
 \begin{center}
-Figure 3: Pedestrian Counting System Visualisation from www.pedestrian.melbourne.vic.gov.au
+Figure 3: Pedestrian Counting System Visualisation from www.pedestrian.melbourne.vic.gov.au - The UI allows the user to choose specific dates and hours of the day to visualise on a 3D perspective map
+
 \end{center}  
   
   
@@ -115,7 +114,7 @@ include_graphics("../img/ped_vis_melb_2.PNG")
 ```
 
 \begin{center}
-Figure 4: An interactive data visualisation created using Tableau
+Figure 4: An interactive data visualisation created using Tableau available from 
 \end{center}  
 
 [^3]: change blindness is the inability to notice a change in visual stimulus introduced
@@ -132,13 +131,13 @@ ggplot(bsplot) + geom_line(aes(x = MTime, y = Hourly_Counts)) +
 Figure 5:  Sample of hourly counts of pedestrians at Flagstaff Station (June 2016)
 \end{center}  
 From _Figure 5_, we can observe multiple characteristics of the time series. Firstly, we see the weekly cycle, where weekdays (Monday to Friday) have lots of activity and weekends (Saturday and Sunday) are relatively quiet. This would be highly suggestive that Flagstaff Station is primarily used by city office workers. Another phenomenon we observe is the effect of a public holiday. Looking near the middle of the month (Monday, 13 June 2016), we have the Queen's Birthday public holiday. We must also note that, prior to the start of 2016, Flagstaff Station was not operating on weekends, nor public holidays.
-```{r, message= FALSE, warning= FALSE, fig.height=3, echo = FALSE, fig.align= "center", cache=TRUE}
+```{r, message= FALSE, warning= FALSE, fig.height=3, echo = FALSE, fig.align= "center"}
 ggplot(filter(ped_df, Sensor_ID == "13")) + geom_path(aes(x = as.integer(Time), y = Hourly_Counts, colour = Day), alpha = 0.2) +
       xlab("Hour of the Day") + ylab("Hourly Counts") + theme_light()
 
 ```
 \begin{center}
-Figure 6:  Estimated hourly counts at Flagstaff Station by Day 
+ **Figure 6**:  Hourly counts at Flagstaff Station, with colour mapped to day of the week - There are two distinctly different daily patterns. The typical weekday traffic pattern has two peaks at 9am and 5pm, while it remains relatively quiet over the weekend as seen by the flatter lines. Also note that the second peak is lower than the first peak on average.
 \end{center}  
 
 In _Figure 6_, we see that, within the weekly cycle, each day has a daily sub-cycle. We can see the patterns we observe on a weekly cycle here when we seperately estimate by the day of the week. What we can see more clearly is also the difference in the pattern of pedestrian activity for each hour of the day, where there are two main peaks per weekday. This is consistent with the peak travel times for people commuting to and from work.  
@@ -224,8 +223,9 @@ The plan to approach this research project is as follows:
 
 ## Acknowledgements 
 
+I would like to thank my supervisor, Dianne Cook, for her help and support throughout this project. I would also like to thank Earo Wang for coming along to our meetings to help out, in particular for her code for imputing missing values.
 
-
+This proposal is written in R Markdown (`.Rmd`) using RStudio and the code used to produce the results outputted are embedded in this document. The packages used for this proposal are: `readr, dplyr, ggplot2, ggmap, knitr`
 ## References  
   1. City of Melbourne, _'About Melbourne Data'_, https://data.melbourne.vic.gov.au/about,  
    $\quad$ _accessed 18 April 2017_  
@@ -241,9 +241,12 @@ The plan to approach this research project is as follows:
   4. Healey, Christopher G., (2012) _'Attention and Visual Memory in Visualization and Computer Graphics'_, IEEE Transactions on Visualization and Computer Graphics,  
   https://www.csc2.ncsu.edu/faculty/healey/download/tvcg.12a.pdf
   
-  5. Wickham, Hadley, Chang, Winston  _'ggplot2'_ , http://ggplot2.tidyverse.org
+  5. Wickham, Hadley, Chang, Winston,  _'ggplot2'_ , http://ggplot2.tidyverse.org
   
-  6. Wickham, Hadley, Francois, Romain  _'dplyr'_ , http://dplyr.tidyverse.org
+  6. Wickham, Hadley, Francois, Romain,  _'dplyr'_ , http://dplyr.tidyverse.org
+  
+  7. Wickham, Hadley, Kahle, David J., _'ggmap'_ , https://github.com/dkahle/ggmap
+  
   
 \newpage
   
