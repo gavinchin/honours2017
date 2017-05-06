@@ -13,7 +13,7 @@ output:
 ---
 
 ```{r setup, include=FALSE, echo = FALSE, warning=FALSE, message=FALSE}
-options(htmltools.dir.version = FALSE)
+options(htmltools.dir.version = FALSE, scipen = 100)
 library(readr)
 library(dplyr)
 library(ggplot2)
@@ -108,11 +108,12 @@ Different ways it can be used:
 
 
 ---
-class: center, inverse
+class: inverse
 
 # Methodology
 
-The project has been split into multiple steps:  
+### The project has been split into multiple steps:  
+
   - Data Cleaning
   - Modelling
   - Visualisation
@@ -122,23 +123,27 @@ The project has been split into multiple steps:
 
 # Data Cleaning
 
-While the data variables themselves are relatively tidy, there is a large number of observations we need to impute
+### While the data variables themselves are relatively tidy, there is a large number of observations we need to impute:
 
 --
 
 ```{r, echo = FALSE, fig.align = "center", fig.height=6, fig.width=12}
-ped_plot <- aggregate(x = ped_df$Hourly_Counts, by = list("Sensor_ID" = ped_df$Sensor_ID, "Year" = ped_df$Year, "Month" = ped_df$Month), FUN = sum)
+ped_plot <- aggregate(x = ped_df$Hourly_Counts,
+                      by = list("Sensor_ID" = ped_df$Sensor_ID, "Year" = ped_df$Year, "Month" = ped_df$Month),
+                      FUN = sum)
 
 ped_plot$counts <- ped_plot$x
 
 
-ped_plot$Time <- parse_date(paste(ped_plot$MDate, ped_plot$Month, ped_plot$Year, sep = "-"), format = "%D-%B-%Y")
+ped_plot$Time <- parse_date(paste(ped_plot$MDate, ped_plot$Month, ped_plot$Year,
+                                  sep = "-"), format = "%D-%B-%Y")
 
 ped_plot$ID <- as.integer(ped_plot$Sensor_ID)
 
 ped_plot$Sensor_ID <- as.factor(ped_plot$Sensor_ID)
 
-ggplot(filter(ped_plot)) + geom_line(aes(x = Time, y = counts, colour = Sensor_ID)) + theme_light() + theme(legend.position = "none") + labs(x = "Year", y = "Pedestrian Counts") + ggtitle("Monthly Total Counts by Sensor")
+ggplot(filter(ped_plot)) + geom_line(aes(x = Time, y = counts, colour = Sensor_ID)) + theme_light() +
+  theme(legend.position = "none") + labs(x = "Year", y = "Pedestrian Counts") + ggtitle("Monthly Total Counts by Sensor")
 
 ```
 
