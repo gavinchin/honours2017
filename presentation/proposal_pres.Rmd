@@ -2,7 +2,7 @@
 title: "Modelling the City of Melbourne Pedestrian Data"
 subtitle: "Thesis Proposal"
 author: "Gavin Chin, supervised by Di Cook"
-date: "8 May 2016"
+date: "8 May 2017"
 output:
   xaringan::moon_reader:
     lib_dir: libs
@@ -118,7 +118,7 @@ ggplot(bsplot) + geom_line(aes(x = MTime, y = Hourly_Counts)) + ggtitle("Hourly 
 
 #### For example, at Flagstaff Station, we notice a couple of key patterns:
 - Weekly cycle
-```{r, message= FALSE, warning= FALSE, fig.height = 4, fig.width = 12, echo = FALSE, fig.align= "center"}
+```{r, message= FALSE, warning= FALSE, fig.height = 3, fig.width = 12, echo = FALSE, fig.align= "center"}
 bsplot <- ped_df %>% filter(Year == "2016", Month == "June", Mdate < 25, Sensor_ID == "13")
 ggplot(bsplot) + geom_line(aes(x = MTime, y = Hourly_Counts)) + ggtitle("Hourly Pedestrian Count at Flagstaff Station", subtitle = "during June 2016") +
       xlab("Hour of the Month") + ylab("Hourly Counts") + theme_light()
@@ -186,7 +186,12 @@ $$\text{HourlyCounts}_{i}  =\text{Poisson}\left(\lambda_{i}\right)$$
 
 --
 
-This needs to be estimated for each location, due to the different characteristics
+- This model specification implies an interaction effect between the year, time of the day, and day of the week (or if the day is a public holiday)
+  + Month of the year is modelled as an additive effect 
+
+- The model needs to be estimated for each location, due to the different characteristics between locations
 
 ---
+
+
 
