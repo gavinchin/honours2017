@@ -114,8 +114,9 @@ include_graphics("../img/ped_vis_melb_2.PNG")
 ```
 
 \begin{center}
-Figure 4: An interactive data visualisation created using Tableau available from 
-\end{center}  
+Figure 4: An interactive data visualisation map created using Tableau by Boreak Silk. Average daily volumes are mapped to size, and colours map a positive or negative change in the average for the period compared to a specified reference period. Note the lack of a legend to help users understand how to interpret different aesthetic mapping of the visualisation.
+\end{center}
+_Source:https://public.tableau.com/profile/boreak.silk#!/vizhome/PedestrianactivityinMelbourne/Dailyvolumesandcomparison _
 
 [^3]: change blindness is the inability to notice a change in visual stimulus introduced
 
@@ -190,7 +191,7 @@ Once a model for forecasting the data has been established, visual methods for i
 
 Improving on the currently available visualisations, the aesthetics of the visualisation will be designed with human perception theory taken into consideration. Preattentive processing theory will be considered to ensure certain elements of the visualisation allow for quick, preattentive identification of busy and quiet areas. Change blindness theory should also be reviewed in order to avoid misperception of relative changes in pedestrian activity.  
 
-
+To plot values on a map of the CBD, the R package `ggmap` is being used currently. The plots are created using the package `ggplot2`, which has the capability to generate many different types of plots. Choosing an appropriate combinations of plots will be important here to present the model accurately.
 
 ### Shiny App Development  
 
@@ -200,6 +201,10 @@ For testing the proof of concept, a simple web application for viewing average h
 ```{r, fig.align = 'center', echo = FALSE, out.width = "66%"}
 include_graphics("../img/ped_vis_melb_me.png")
 ```
+
+Methods for making the app run efficiently need to be investigated, as each plot needs to be rendered after any changes to the input values in the UI (eg. changing time of day requires the plot to be rendered again). This is highly inefficient and not feasible for use on a public website. This problem will be exacerbated when a predictive model is added, as the model will need to predict values before the plots are rendered.
+
+Decisions regarding the design of the user interface also need to be made, specifically with the inputs which will be made available to users.
 
 ## Limitations  
 
@@ -253,7 +258,7 @@ This proposal is written in R Markdown (`.Rmd`) using RStudio and the code used 
 # Appendix
 
 ### Plots of time series at each sensor location over entire time span from 2009:  
-```{r, echo = FALSE, cache=TRUE}
+```{r, echo = FALSE, cache=TRUE, out.height = "70%"}
 ped_plot <- aggregate(x = ped_df$Hourly_Counts, by = list("Sensor_ID" = ped_df$Sensor_ID, "Year" = ped_df$Year, "Month" = ped_df$Month), FUN = sum)
 
 ped_plot$counts <- ped_plot$x
