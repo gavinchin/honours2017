@@ -49,17 +49,16 @@ ggmap(melb) + geom_point(aes(x = Longitude, y = Latitude), data = ped_loc, colou
 
 
 ---
+class: center
 
 # How is the data collected?
 
 The City of Melbourne has `r nrow(ped_loc)` sensors installed around Melbourne's CBD  
+- These sensors are positioned under an awning or street pole, and count the number of people passing each hour
 
-These sensors are positioned under an awning or street pole, and count the number of people passing each hour
+![figure of pedestrian sensors](../img/ped_sensors.png)
 
-```{r echo = FALSE}
-include_graphics("../img/ped_sensors.png")
-```
-
+_source: http://www.pedestrian.melbourne.vic.gov.au/pdf/CityofMelbournePedestrianCountingSystem.pdf _
 
 ---
 
