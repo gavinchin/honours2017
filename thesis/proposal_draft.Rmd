@@ -132,7 +132,7 @@ ggplot(bsplot) + geom_line(aes(x = MTime, y = Hourly_Counts)) +
 From _Figure 5_, we can observe multiple characteristics of the time series. Firstly, we see the weekly cycle, where weekdays (Monday to Friday) have lots of activity and weekends (Saturday and Sunday) are relatively quiet. This would be highly suggestive that Flagstaff Station is primarily used by city office workers. Another phenomenon we observe is the effect of a public holiday. Looking near the middle of the month (Monday, 13 June 2016), we have the Queen's Birthday public holiday. We must also note that, prior to the start of 2016, Flagstaff Station was not operating on weekends, nor public holidays.
 ```{r, message= FALSE, warning= FALSE, fig.height=3, echo = FALSE, fig.align= "center"}
 ggplot(filter(ped_df, Sensor_ID == "13")) + geom_path(aes(x = as.integer(Time), y = Hourly_Counts, colour = Day), alpha = 0.2) +
-      xlab("Hour of the Day") + ylab("Hourly Counts") + theme_light()
+      xlab("Hour of the Day") + ylab("Hourly Counts") + theme_light() + guides(colour = guide_legend(override.aes = list(alpha = 1)))
 ```
 \begin{center}
  \textbf{Figure 6}:  Hourly counts at Flagstaff Station, with colour mapped to day of the week - There are two distinctly different daily patterns. The typical weekday traffic pattern has two peaks at 9am and 5pm, while it remains relatively quiet over the weekend as seen by the flatter lines. Also note that the second peak is lower than the first peak on average.
