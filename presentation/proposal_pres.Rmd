@@ -293,10 +293,11 @@ class: center
 
 ## Interactive Visualisation: Shiny apps
 
-The package `shiny` allows us to build web apps using R's capabilities in the background
-We can add interactive inputs to visualisations.
+The package `shiny` allows us to build web apps using R's capabilities in the background  
 
-An example of what we can make:
+We can add interactive inputs to visualisations
+
+#### An example of what we can make:
 
 
 ---
@@ -321,11 +322,11 @@ class: inverse, middle, center
 
 ---
 
-
 # Acknowledgements
 
 ##### Thanks to Di Cook and Earo Wang for helping me thus far in the project!
 
 This presentation was written in R Markdown using the template `xaringan`.
 Other packages used for this presentation are: `readr, dplyr, ggplot2, ggmap, knitr, lubridate`
+
 

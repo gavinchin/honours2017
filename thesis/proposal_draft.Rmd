@@ -1,7 +1,7 @@
 ---
 title: "What can we learn about life in the city by mining the Melbourne’s Open Data Platform?"
 subtitle: "Thesis Proposal"
-date: April 2017
+date: 7 May 2017
 author: 
 - "Gavin Chin"
 - "supervised by Dianne Cook"
