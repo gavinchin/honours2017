@@ -28,6 +28,10 @@ library(lubridate)
   melb <- get_map(location=c(mean(range(ped_loc$Longitude)),
                                mean(range(ped_loc$Latitude))),
                                 zoom=14)
+  melbbw <- get_map(location=c(mean(range(ped_loc$Longitude)),
+                               mean(range(ped_loc$Latitude))),
+                                zoom=14,
+                    color = "bw")
 ```
 
 class: center
@@ -86,7 +90,7 @@ class: center, middle
 ## Time series at each sensor location
 
 
-```{r, echo = FALSE}
+```{r, echo = FALSE, message=FALSE, warning=FALSE}
       ped_df$Year <- as.factor(ped_df$Year)
       ped_df$Month <- as.factor(ped_df$Month)
       ped_df$Month <- factor(ped_df$Month, levels(ped_df$Month)[c(5,4,8,1,9,7,6,2,12,11,10,3)])
@@ -95,6 +99,10 @@ class: center, middle
       ped_df$MTime <- as.integer(ped_df$Time) + ((as.integer(ped_df$Mdate)-1) * 24)
       ped_df$Day <- as.factor(ped_df$Day)
       ped_df$Day <- factor(ped_df$Day, levels(ped_df$Day)[c(2,6,7,5,1,3,4)])
+      
+      ped_df$Lat <- 0
+      ped_df$Lon <- 0
+      
       for (i in 1:dim(ped_loc)[1])
       {
       ped_df$Lat[ped_df$Sensor_ID == ped_loc$`Sensor ID`[i]] <- ped_loc$Latitude[i]
@@ -180,7 +188,8 @@ ggplot(filter(ped_plot)) + geom_line(aes(x = Time, y = counts, colour = Sensor_I
 #### A simple way to impute these missings is estimating a Poisson regression using GLM in R:
 
 ```{r, eval = FALSE, tidy = TRUE}
-missing_glm <- glm(Hourly_Counts ~ Year * HDay * Time + Month)
+missing_glm <- glm(Hourly_Counts ~ Year * HDay * Time + Month,
+                   data = ped_df, family = "poisson")
 ```
 
 This can be expressed as:
@@ -210,6 +219,15 @@ $$\text{HourlyCounts}_{i}  =\text{Poisson}\left(\lambda_{i}\right)$$
   + Alternative models, such as a Multiple Seasonal (MS) process available through the `forecast` R package, should also be investigated
 
 ---
+class: middle, center
+
+## Modelling: evaluating model performance
+The criteria we will use to evaluate the model's forecasting performance is the root mean square forecast error:
+$$ \text{RMSFE} = \sqrt{\frac{\sum_{t=T+1}^{T+k}(\hat{y_t} - y_t)^2}{k}}$$
+where the model is estimated with $T$ observations, and we have $k$ points to forecast (so we need to have $T+k$ observations available)
+- evaluating performance of the model on its forecasting accuracy is important, as it will reveal overfitting of data
+
+---
 
 class: center, middle
 
@@ -225,10 +243,23 @@ class: center, middle
 
 ## Visualisation
 
-With this project, we want to improve the way we visualise Melbourne's pedestrian activity, and use a predicitive model to get a better understanding of how Melbourne operates
+With this project, we want to improve the way we visualise Melbourne's pedestrian activity
+```{r, echo = FALSE, fig.retina = 3, out.height="500px", fig.align = 'center'}
+ggmap(melbbw) + geom_point(aes(x = Lon, y = Lat, size = Hourly_Counts), colour = "red", alpha = 0.03, data = filter(ped_df, Year == "2016", Month == "March", Time == "9")) + scale_size_area(max_size = 10) + scale_color_distiller(palette = "PuOr") + guides(colour = guide_legend(override.aes = list(alpha = 1))) + theme_light() + labs(x = NULL, y = NULL)
+```
 
-```{r, echo = FALSE}
-ggmap(melb) + geom_point(aes(x = Lon, y = Lat, size = Hourly_Counts), alpha = 0.02, data = filter(ped_df, Year == "2016", Month == "March", Time == "9"), colour = "violetred") + scale_size_area(max_size = 10) + guides(colour = guide_legend(override.aes = list(alpha = 1)))
+---
+class: center
+
+## Visualisation: different methods
+
+```{r, echo = FALSE, message=FALSE, out.height="500px", fig.retina=2}
+  ggplot(ped_df[ped_df$Sensor_ID == "3", ]) + 
+    geom_smooth(aes(x = Timeplot, y = Hourly_Counts, colour = Month), se = F) + 
+    xlab("Time of the Day") + ylab("Pedestrian Count") + 
+    ggtitle(paste("Monthly Average Hourly Counts at", ped_loc$`Sensor Description`[ped_loc$`Sensor ID` == "3"], "by Day")) +
+    facet_wrap(~ Day, nrow = 2) + theme(plot.title = element_text(hjust = 0.5), legend.position = "bottom") +
+    scale_x_continuous(limits = c(0,24))
 ```
 
 
