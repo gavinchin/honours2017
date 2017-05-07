@@ -1,0 +1,280 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <title>Modelling the City of Melbourne Pedestrian Data</title>
+    <meta charset="utf-8">
+    <meta name="author" content="Gavin Chin, supervised by Di Cook" />
+    <link href="libs/remark-css/example.css" rel="stylesheet" />
+  </head>
+  <body>
+    <textarea id="source">
+class: center, middle, inverse, title-slide
+
+# Modelling the City of Melbourne Pedestrian Data
+## Thesis Proposal
+### Gavin Chin, supervised by Di Cook
+### 8 May 2017
+
+---
+
+
+
+
+class: center
+
+# Introduction
+
+The City of Melbourne has an Open Data Platform which makes council data available to the public  
+
+This project will focus on the pedestrian sensor data
+
+&lt;img src="proposal_pres_files/figure-html/unnamed-chunk-1-1.png" width="504" /&gt;
+
+
+---
+class: center
+
+## How is the data collected?
+
+The City of Melbourne has 43 sensors installed around Melbourne's CBD  
+- These sensors are positioned under an awning or street pole, and count the number of people passing each hour
+- The data is available as a `.csv` at https://data.melbourne.vic.gov.au/, and is updated monthly
+
+![figure of pedestrian sensors](../img/ped_sensors.png)
+
+_source: http://www.pedestrian.melbourne.vic.gov.au/ _
+
+---
+
+
+# Why do we want to model pedestrian traffic?
+
+### Being able to predict how many people pass through a certain location can be used by the government sector as well as the private sector  
+
+#### Different ways it can be used: 
+
+  Government example uses:  
+    - Infrastructure planning
+    - Security planning
+  Private example uses:
+    - Marketing campaign planning
+    - Resource management
+    - Investment planning
+  
+  and many other various ways..
+---
+
+class: center, middle
+
+## Time series at each sensor location
+
+
+
+
+&lt;img src="proposal_pres_files/figure-html/unnamed-chunk-3-1.png" width="864" style="display: block; margin: auto;" /&gt;
+
+#### Basic variables available are: time and date, sensor ID and hourly counts
+
+
+```
+## # A tibble: 1 × 12
+##      ID         Date_Time   Year  Month Mdate    Day   Time Sensor_ID
+##   &lt;int&gt;             &lt;chr&gt; &lt;fctr&gt; &lt;fctr&gt; &lt;int&gt; &lt;fctr&gt; &lt;fctr&gt;     &lt;int&gt;
+## 1     1 01-JUN-2009 00:00   2009   June     1 Monday      0         4
+## # ... with 4 more variables: Sensor_Name &lt;chr&gt;, Hourly_Counts &lt;int&gt;,
+## #   Lat &lt;dbl&gt;, Lon &lt;dbl&gt;
+```
+
+
+---
+
+## Multiple seasonal patterns
+
+#### For example, at Flagstaff Station, we notice a couple of key patterns:
+- Weekly cycle
+&lt;img src="proposal_pres_files/figure-html/unnamed-chunk-5-1.png" width="864" style="display: block; margin: auto;" /&gt;
+- Daily sub-cycle
+&lt;img src="proposal_pres_files/figure-html/unnamed-chunk-6-1.png" width="504" style="display: block; margin: auto;" /&gt;
+
+---
+class: inverse, middle, center
+
+# Methodology
+
+### The project has been split into multiple steps:  
+#### Data Cleaning
+#### Modelling
+#### Visualisation
+#### Shiny app development
+  
+---
+
+# Data Cleaning: Problems in the data
+
+### While the data variables themselves are relatively tidy, there is a large number of observations we need to impute:
+
+
+&lt;img src="proposal_pres_files/figure-html/unnamed-chunk-7-1.png" width="864" style="display: block; margin: auto;" /&gt;
+
+---
+
+# Data Cleaning: Imputing the missings
+
+#### A simple way to impute these missings is estimating a Poisson regression using GLM in R:
+
+
+```r
+missing_glm &lt;- glm(Hourly_Counts ~ Year * HDay * Time + Month,
+                   data = ped_df, family = "poisson")
+```
+
+This can be expressed as:
+
+`$$\text{HourlyCounts} \sim\text{Year}\times\text{HDay}\times\text{Time}+\text{Month}$$`
+`$$\Rightarrow\qquad \log{\lambda_{i}}  =\beta_{0}+\beta_{1}\text{Year}\times\text{HDay}\times\text{Time}+\beta_{2}\text{Month}$$`
+`$$\text{HourlyCounts}_{i}  =\text{Poisson}\left(\lambda_{i}\right)$$`
+
+--
+
+- This model specification implies an interaction effect between the year, time of the day, and day of the week (or if the day is a public holiday)
+  + Month of the year is modelled as an additive effect 
+
+- The model needs to be estimated for each location, due to the different characteristics between locations
+
+---
+
+# Modelling
+
+- Main purpose of the model is to forecast pedestrian counts
+- Data used for estimatation (training dataset) will be the period between 2014-2016
+  + The data before 2014 is not stable, and also lacks data from newly installed sensors
+- Data used to evaluate the forecasting performance will be the 2017 data available
+
+- Due to the multiple seasonal patterns in the time series, typical models like AR, ARMA and ARIMA do not work very well
+  + Modelling using other sources of data is being explored, in particular weather data
+  + Alternative models, such as a Multiple Seasonal (MS) process available through the `forecast` R package, should also be investigated
+  + Machine learning techniques, such as clustering and other non-parametric estimation methods, will also be considered
+
+---
+class: middle, center
+
+## Modelling: evaluating model performance
+The criteria we will use to evaluate the model's forecasting performance is the root mean square forecast error:
+$$ \text{RMSFE} = \sqrt{\frac{\sum_{t=T+1}^{T+k}(\hat{y_t} - y_t)^2}{k}}$$
+where the model is estimated with `\(T\)` observations, and we have `\(k\)` points to forecast (so we need to have `\(T+k\)` observations available)
+- evaluating performance of the model on its forecasting accuracy is important, as it will reveal overfitting of data
+
+---
+
+class: center, middle
+
+## Visualisation: Currently available
+#### Official City of Melbourne data visualisation
+
+&lt;img src="../img/ped_vis_melb.PNG" width="540px" height="400px" /&gt;
+
+---
+class: center, middle
+
+## Visualisation
+
+With this project, we want to improve the way we visualise Melbourne's pedestrian activity
+&lt;img src="proposal_pres_files/figure-html/unnamed-chunk-10-1.png" width="504" height="500px" style="display: block; margin: auto;" /&gt;
+
+---
+class: center
+
+## Visualisation: different methods
+
+&lt;img src="proposal_pres_files/figure-html/unnamed-chunk-11-1.png" width="864" height="480px" /&gt;
+
+---
+
+class: center
+
+## Visualisation: different methods
+
+&lt;img src="proposal_pres_files/figure-html/unnamed-chunk-12-1.png" width="864" height="480px" /&gt;
+
+---
+class: middle
+
+## Visualisation: importance of design
+
+As we can see, there are many different ways to present the same data  
+
+When designing visualisations for pedestrian data, we need to take into consideration:
+- Preattentive processing
+- Change blindness
+
+Need to communicate the intended message to the person viewing the plots
+
+---
+class: center
+
+## Interactive Visualisation: Shiny apps
+
+The package `shiny` allows us to build web apps using R's capabilities in the background  
+
+We can add interactive inputs to visualisations
+
+#### An example of what we can make:
+
+
+---
+
+class: inverse, middle
+
+# Research Plan
+
+### The plan to approach this research project is as follows:
+
+1. Imputation that incorporates time and space
+2. Creating a predictive model for each sensor
+3. Investigation of visual methods for space-time counts
+4. Development of a Shiny app: interface design, computation and data backend
+5. Generation of a dynamic spatial model (if time permits)
+
+---
+
+class: inverse, middle, center
+
+# Questions or comments?
+
+---
+
+# Acknowledgements
+
+##### Thanks to Di Cook and Earo Wang for helping me thus far in the project!
+
+This presentation was written in R Markdown using the template `xaringan`.
+Other packages used for this presentation are: `readr, dplyr, ggplot2, ggmap, knitr, lubridate`
+    </textarea>
+<script src="https://remarkjs.com/downloads/remark-latest.min.js"></script>
+<script>var slideshow = remark.create({
+"highlightStyle": "github",
+"highlightLines": true,
+"countIncrementalSlides": false
+});
+if (window.HTMLWidgets) slideshow.on('showSlide', function (slide) {setTimeout(function() {window.dispatchEvent(new Event('resize'));}, 100)});</script>
+
+<script type="text/x-mathjax-config">
+MathJax.Hub.Config({
+  tex2jax: {
+    skipTags: ['script', 'noscript', 'style', 'textarea', 'pre']
+  }
+});
+</script>
+<!-- dynamically load mathjax for compatibility with self-contained -->
+<script>
+(function () {
+  var script = document.createElement('script');
+  script.type = 'text/javascript';
+  script.src  = 'https://cdn.mathjax.org/mathjax/latest/MathJax.js?config=TeX-AMS-MML_HTMLorMML';
+  if (location.protocol !== 'file:' && /^https?:/.test(script.src))
+    script.src  = script.src.replace(/^https?:/, '');
+  document.getElementsByTagName('head')[0].appendChild(script);
+})();
+</script>
+  </body>
+</html>
