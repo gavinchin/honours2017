@@ -185,7 +185,7 @@ ggplot(filter(ped_plot)) + geom_line(aes(x = Time, y = counts, colour = Sensor_I
 
 #### A simple way to impute these missings is estimating a Poisson regression using GLM in R:
 
-```{r, eval = FALSE, tidy = TRUE}
+```{r, eval = FALSE}
 missing_glm <- glm(Hourly_Counts ~ Year * HDay * Time + Month,
                    data = ped_df, family = "poisson")
 ```
@@ -244,7 +244,7 @@ class: center, middle
 
 With this project, we want to improve the way we visualise Melbourne's pedestrian activity
 ```{r, echo = FALSE, fig.retina = 3, out.height="500px", fig.align = 'center'}
-ggmap(melbbw) + geom_point(aes(x = Lon, y = Lat, size = Hourly_Counts), colour = "red", alpha = 0.03, data = filter(ped_df, Year == "2016", Month == "March", Time == "9")) + scale_size_area(max_size = 10) + scale_color_distiller(palette = "PuOr") + guides(colour = guide_legend(override.aes = list(alpha = 1))) + theme_light() + labs(x = NULL, y = NULL)
+ggmap(melbbw) + geom_point(aes(x = Lon, y = Lat, size = Hourly_Counts), colour = "red", alpha = 0.03, data = filter(ped_df, Year == "2016", Month == "January", Time == "9")) + scale_size_area(max_size = 10) + scale_color_distiller(palette = "PuOr") + guides(colour = guide_legend(override.aes = list(alpha = 1))) + theme_light() + labs(x = NULL, y = NULL)
 ```
 
 ---
@@ -270,7 +270,7 @@ class: center
 ```{r, echo = FALSE, message=FALSE, out.height="480px", fig.retina=2, fig.width = 12}
   ggplot(ped_df[ped_df$Sensor_ID == "3", ]) + 
     geom_density(aes(x = Hourly_Counts, colour = Day), adjust = 2, alpha = 0.2) + 
-    xlab("Time of the Day") + ylab("Density") + 
+    xlab("Pedestrian Counts") + ylab("Density") + 
     ggtitle(paste("Kernel Density Estimates of Hourly Counts at", ped_loc$`Sensor Description`[ped_loc$`Sensor ID` == "3"], "by Day")) +
     theme(plot.title = element_text(hjust = 0.5), legend.position = "bottom")
 ```
