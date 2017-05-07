@@ -19,7 +19,6 @@ library(dplyr)
 library(ggplot2)
 library(ggmap)
 library(knitr)
-library(pander)
 library(lubridate)
   ped_df <- read_csv("../data/Pedestrian_volume__updated_monthly_.csv")
       
@@ -159,7 +158,6 @@ class: inverse, middle, center
 
 ### While the data variables themselves are relatively tidy, there is a large number of observations we need to impute:
 
---
 
 ```{r, echo = FALSE, fig.align = "center", fig.height=6, fig.width=12, fig.retina = 2}
 ped_plot <- aggregate(x = ped_df$Hourly_Counts,
@@ -217,6 +215,7 @@ $$\text{HourlyCounts}_{i}  =\text{Poisson}\left(\lambda_{i}\right)$$
 - Due to the multiple seasonal patterns in the time series, typical models like AR, ARMA and ARIMA do not work very well
   + Modelling using other sources of data is being explored, in particular weather data
   + Alternative models, such as a Multiple Seasonal (MS) process available through the `forecast` R package, should also be investigated
+  + Machine learning techniques, such as clustering and other non-parametric estimation methods, will also be considered
 
 ---
 class: middle, center
@@ -253,7 +252,7 @@ class: center
 
 ## Visualisation: different methods
 
-```{r, echo = FALSE, message=FALSE, out.height="500px", fig.retina=2}
+```{r, echo = FALSE, message=FALSE, out.height="480px", fig.retina=2, fig.width = 12}
   ggplot(ped_df[ped_df$Sensor_ID == "3", ]) + 
     geom_smooth(aes(x = Timeplot, y = Hourly_Counts, colour = Month), se = F) + 
     xlab("Time of the Day") + ylab("Pedestrian Count") + 
@@ -262,6 +261,71 @@ class: center
     scale_x_continuous(limits = c(0,24))
 ```
 
+---
+
+class: center
+
+## Visualisation: different methods
+
+```{r, echo = FALSE, message=FALSE, out.height="480px", fig.retina=2, fig.width = 12}
+  ggplot(ped_df[ped_df$Sensor_ID == "3", ]) + 
+    geom_density(aes(x = Hourly_Counts, colour = Day), adjust = 2, alpha = 0.2) + 
+    xlab("Time of the Day") + ylab("Density") + 
+    ggtitle(paste("Kernel Density Estimates of Hourly Counts at", ped_loc$`Sensor Description`[ped_loc$`Sensor ID` == "3"], "by Day")) +
+    theme(plot.title = element_text(hjust = 0.5), legend.position = "bottom")
+```
+
+---
+class: middle
+
+## Visualisation: importance of design
+
+As we can see, there are many different ways to present the same data  
+
+When designing visualisations for pedestrian data, we need to take into consideration:
+- Preattentive processing
+- Change blindness
+
+Need to communicate the intended message to the person viewing the plots
+
+---
+class: center
+
+## Interactive Visualisation: Shiny apps
+
+The package `shiny` allows us to build web apps using R's capabilities in the background
+We can add interactive inputs to visualisations.
+
+An example of what we can make:
 
 
+---
+
+class: inverse, middle
+
+# Research Plan
+
+### The plan to approach this research project is as follows:
+
+- Imputation that incorporates time and space
+- Creating a predictive model for each sensor
+- Investigation of visual methods for space-time counts
+- Development of a Shiny app: interface design, computation and data backend
+- Generation of a dynamic spatial model (if time permits)
+
+---
+
+class: inverse, middle, center
+
+# Questions or comments?
+
+---
+
+
+# Acknowledgements
+
+##### Thanks to Di Cook and Earo Wang for helping me thus far in the project!
+
+This presentation was written in R Markdown using the template `xaringan`.
+Other packages used for this presentation are: `readr, dplyr, ggplot2, ggmap, knitr, lubridate`
 
