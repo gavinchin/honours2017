@@ -307,11 +307,11 @@ class: inverse, middle
 
 ### The plan to approach this research project is as follows:
 
-- Imputation that incorporates time and space
-- Creating a predictive model for each sensor
-- Investigation of visual methods for space-time counts
-- Development of a Shiny app: interface design, computation and data backend
-- Generation of a dynamic spatial model (if time permits)
+1. Imputation that incorporates time and space
+2. Creating a predictive model for each sensor
+3. Investigation of visual methods for space-time counts
+4. Development of a Shiny app: interface design, computation and data backend
+5. Generation of a dynamic spatial model (if time permits)
 
 ---
 
