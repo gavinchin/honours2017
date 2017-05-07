@@ -7,6 +7,7 @@ library(ggplot2)
 library(knitr)
 library(lubridate)
 library(tidytext)
+library(speedglm)
 
 ped_df <- read_csv("data/Pedestrian_volume__updated_monthly_.csv")
   ped_df$Year <- as.factor(ped_df$Year)

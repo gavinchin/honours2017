@@ -133,7 +133,6 @@ From _Figure 5_, we can observe multiple characteristics of the time series. Fir
 ```{r, message= FALSE, warning= FALSE, fig.height=3, echo = FALSE, fig.align= "center"}
 ggplot(filter(ped_df, Sensor_ID == "13")) + geom_path(aes(x = as.integer(Time), y = Hourly_Counts, colour = Day), alpha = 0.2) +
       xlab("Hour of the Day") + ylab("Hourly Counts") + theme_light()
-
 ```
 \begin{center}
  \textbf{Figure 6}:  Hourly counts at Flagstaff Station, with colour mapped to day of the week - There are two distinctly different daily patterns. The typical weekday traffic pattern has two peaks at 9am and 5pm, while it remains relatively quiet over the weekend as seen by the flatter lines. Also note that the second peak is lower than the first peak on average.
