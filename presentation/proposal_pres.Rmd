@@ -51,14 +51,14 @@ ggmap(melb) + geom_point(aes(x = Longitude, y = Latitude), data = ped_loc, colou
 ---
 class: center
 
-# How is the data collected?
+## How is the data collected?
 
 The City of Melbourne has `r nrow(ped_loc)` sensors installed around Melbourne's CBD  
 - These sensors are positioned under an awning or street pole, and count the number of people passing each hour
 
 ![figure of pedestrian sensors](../img/ped_sensors.png)
 
-_source: http://www.pedestrian.melbourne.vic.gov.au/pdf/CityofMelbournePedestrianCountingSystem.pdf _
+_source: http://www.pedestrian.melbourne.vic.gov.au/ _
 
 ---
 
@@ -131,7 +131,8 @@ ggplot(bsplot) + geom_line(aes(x = MTime, y = Hourly_Counts)) + ggtitle("Hourly 
 - Daily sub-cycle
 ```{r, message= FALSE, warning= FALSE, fig.height=3, echo = FALSE, fig.align= "center", fig.retina = 2}
 ggplot(filter(ped_df, Sensor_ID == "13")) + geom_path(aes(x = as.integer(Time), y = Hourly_Counts, colour = Day), alpha = 0.2) +
-      xlab("Hour of the Day") + ylab("Hourly Counts") + theme_light()
+      xlab("Hour of the Day") + ylab("Hourly Counts") + theme_light() +
+      guides(colour = guide_legend(override.aes = list(alpha = 1)))
 ```
 
 ---
