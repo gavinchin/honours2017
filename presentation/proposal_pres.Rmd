@@ -38,7 +38,7 @@ The City of Melbourne has an Open Data Platform which makes council data availab
 
 This project will focus on the pedestrian sensor data
 
-```{r, echo = FALSE, fig.height=5, fig.retina = 2}
+```{r, echo = FALSE, fig.height=5, fig.retina = 3}
 ggmap(melb) + geom_point(aes(x = Longitude, y = Latitude), data = ped_loc, colour = "red", alpha = 0.7) +
               labs(title = "Melbourne Pedestrian Sensor Locations") +
               xlab(NULL) + ylab(NULL) +
@@ -55,6 +55,7 @@ class: center
 
 The City of Melbourne has `r nrow(ped_loc)` sensors installed around Melbourne's CBD  
 - These sensors are positioned under an awning or street pole, and count the number of people passing each hour
+- The data is available as a `.csv` at https://data.melbourne.vic.gov.au/, and is updated monthly
 
 ![figure of pedestrian sensors](../img/ped_sensors.png)
 
@@ -78,18 +79,11 @@ _source: http://www.pedestrian.melbourne.vic.gov.au/ _
     - Investment planning
   
   and many other various ways..
+---
 
----  
-  
-# What does the data look like?
+class: center, middle
 
-```{r}
-glimpse(ped_df)
-```
-
---
-
-#### Basic variables available are: time and date, sensor ID and hourly counts
+## Time series at each sensor location
 
 
 ```{r, echo = FALSE}
@@ -101,21 +95,26 @@ glimpse(ped_df)
       ped_df$MTime <- as.integer(ped_df$Time) + ((as.integer(ped_df$Mdate)-1) * 24)
       ped_df$Day <- as.factor(ped_df$Day)
       ped_df$Day <- factor(ped_df$Day, levels(ped_df$Day)[c(2,6,7,5,1,3,4)])
+      for (i in 1:dim(ped_loc)[1])
+      {
+      ped_df$Lat[ped_df$Sensor_ID == ped_loc$`Sensor ID`[i]] <- ped_loc$Latitude[i]
+      ped_df$Lon[ped_df$Sensor_ID == ped_loc$`Sensor ID`[i]] <- ped_loc$Longitude[i]
+      }
 
 ```
-
-
----
-
-class: center, middle
-
-## Time series at each sensor location
 
 ```{r, message= FALSE, warning= FALSE, fig.height = 5, fig.width = 12, echo = FALSE, fig.retina = 2, fig.align= "center"}
 bsplot <- ped_df %>% filter(Year == "2016", Month == "June", Mdate < 25, Sensor_ID == "40")
 ggplot(bsplot) + geom_line(aes(x = MTime, y = Hourly_Counts), colour = "black") + ggtitle(paste("Hourly Pedestrian Count at", unique(bsplot$Sensor_Name), sep = " "), subtitle = "during June 2016") +
       xlab("Hour of the Month") + ylab("Hourly Counts") + theme_light()
 ```
+
+#### Basic variables available are: time and date, sensor ID and hourly counts
+
+```{r, echo = FALSE}
+head(ped_df[, -c(11,12)], 1)
+```
+
 
 ---
 
@@ -198,6 +197,40 @@ $$\text{HourlyCounts}_{i}  =\text{Poisson}\left(\lambda_{i}\right)$$
 - The model needs to be estimated for each location, due to the different characteristics between locations
 
 ---
+
+# Modelling
+
+- Main purpose of the model is to forecast pedestrian counts
+- Data used for estimatation (training dataset) will be the period between 2014-2016
+  + The data before 2014 is not stable, and also lacks data from newly installed sensors
+- Data used to evaluate the forecasting performance will be the 2017 data available
+
+- Due to the multiple seasonal patterns in the time series, typical models like AR, ARMA and ARIMA do not work very well
+  + Modelling using other sources of data is being explored, in particular weather data
+  + Alternative models, such as a Multiple Seasonal (MS) process available through the `forecast` R package, should also be investigated
+
+---
+
+class: center, middle
+
+## Visualisation: Currently available
+#### Official City of Melbourne data visualisation
+
+```{r, echo = FALSE, out.height= "400px", out.width = "540px"}
+include_graphics("../img/ped_vis_melb.PNG")
+```
+
+---
+class: center, middle
+
+## Visualisation
+
+With this project, we want to improve the way we visualise Melbourne's pedestrian activity, and use a predicitive model to get a better understanding of how Melbourne operates
+
+```{r, echo = FALSE}
+ggmap(melb) + geom_point(aes(x = Lon, y = Lat, size = Hourly_Counts), alpha = 0.02, data = filter(ped_df, Year == "2016", Month == "March", Time == "9"), colour = "violetred") + scale_size_area(max_size = 10) + guides(colour = guide_legend(override.aes = list(alpha = 1)))
+```
+
 
 
 
