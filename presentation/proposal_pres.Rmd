@@ -38,7 +38,7 @@ The City of Melbourne has an Open Data Platform which makes council data availab
 
 This project will focus on the pedestrian sensor data
 
-```{r, echo = FALSE, fig.height=5}
+```{r, echo = FALSE, fig.height=5, fig.retina = 2}
 ggmap(melb) + geom_point(aes(x = Longitude, y = Latitude), data = ped_loc, colour = "red", alpha = 0.7) +
               labs(title = "Melbourne Pedestrian Sensor Locations") +
               xlab(NULL) + ylab(NULL) +
@@ -106,9 +106,9 @@ class: center, middle
 
 ## Time series at each sensor location
 
-```{r, message= FALSE, warning= FALSE, fig.height = 5, fig.width = 12, echo = FALSE, fig.align= "center"}
-bsplot <- ped_df %>% filter(Year == "2016", Month == "June", Mdate < 25, Sensor_ID == "13")
-ggplot(bsplot) + geom_line(aes(x = MTime, y = Hourly_Counts)) + ggtitle("Hourly Pedestrian Count at Flagstaff Station", subtitle = "during June 2016") +
+```{r, message= FALSE, warning= FALSE, fig.height = 5, fig.width = 12, echo = FALSE, fig.retina = 2, fig.align= "center"}
+bsplot <- ped_df %>% filter(Year == "2016", Month == "June", Mdate < 25, Sensor_ID == "40")
+ggplot(bsplot) + geom_line(aes(x = MTime, y = Hourly_Counts), colour = "black") + ggtitle(paste("Hourly Pedestrian Count at", unique(bsplot$Sensor_Name), sep = " "), subtitle = "during June 2016") +
       xlab("Hour of the Month") + ylab("Hourly Counts") + theme_light()
 ```
 
@@ -118,13 +118,13 @@ ggplot(bsplot) + geom_line(aes(x = MTime, y = Hourly_Counts)) + ggtitle("Hourly 
 
 #### For example, at Flagstaff Station, we notice a couple of key patterns:
 - Weekly cycle
-```{r, message= FALSE, warning= FALSE, fig.height = 3, fig.width = 12, echo = FALSE, fig.align= "center"}
+```{r, message= FALSE, warning= FALSE, fig.height = 3, fig.width = 12, echo = FALSE, fig.retina = 2, fig.align= "center"}
 bsplot <- ped_df %>% filter(Year == "2016", Month == "June", Mdate < 25, Sensor_ID == "13")
 ggplot(bsplot) + geom_line(aes(x = MTime, y = Hourly_Counts)) + ggtitle("Hourly Pedestrian Count at Flagstaff Station", subtitle = "during June 2016") +
       xlab("Hour of the Month") + ylab("Hourly Counts") + theme_light()
 ```
 - Daily sub-cycle
-```{r, message= FALSE, warning= FALSE, fig.height=3, echo = FALSE, fig.align= "center"}
+```{r, message= FALSE, warning= FALSE, fig.height=3, echo = FALSE, fig.align= "center", fig.retina = 2}
 ggplot(filter(ped_df, Sensor_ID == "13")) + geom_path(aes(x = as.integer(Time), y = Hourly_Counts, colour = Day), alpha = 0.2) +
       xlab("Hour of the Day") + ylab("Hourly Counts") + theme_light()
 ```
@@ -148,7 +148,7 @@ class: inverse, middle, center
 
 --
 
-```{r, echo = FALSE, fig.align = "center", fig.height=6, fig.width=12}
+```{r, echo = FALSE, fig.align = "center", fig.height=6, fig.width=12, fig.retina = 2}
 ped_plot <- aggregate(x = ped_df$Hourly_Counts,
                       by = list("Sensor_ID" = ped_df$Sensor_ID, "Year" = ped_df$Year, "Month" = ped_df$Month),
                       FUN = sum)
