@@ -80,7 +80,7 @@ Each observation in the data contains three main variables: the specific hour (d
 ```
   
 \begin{center}
-\textbf{Figure 2}: Smoothed pedestrian counts for Melbourne Central by day of the week and month of the year
+\textbf{Figure 2}: Smoothed pedestrian counts for Melbourne Central by day of the week and month of the year. Month of the year is mapped to colour. We see that the daily patterns are quite consistent between days of the week, although we note that the amount of pedestrians at late hours of the day are higher during Friday and Saturday compared to other days.
 \end{center}  
 
 We are faced with two large limitations due to the nature of the collection of the data. Firstly, pedestrian counts are aggregated hourly. This does not allow for highly accurate modelling. Secondly, we note that there is a lack of sensors, and hence pedestrian data, for the area between Spencer Street and Elizabeth Street. The majority of the sensors have been installed by the City of Melbourne along Swanston Street. The consequence of this is the potential to make misleading conclusions regarding the pedestrian activity in that area. Plotting pedestrian traffic of the entire CBD may give the inaccurate perception of very low/no pedestrian activity.  
