@@ -34,10 +34,11 @@ pub_hday16 <- read_csv("http://data.gov.au/dataset/b1bc6077-dadd-4f61-9f8c-002ab
   pub_hdays$VIC[grep("NAT", pub_hdays$`Applicable To`)] <- 1
 
   ped_df$HDay <- 0
+  ped_df$Date <- ymd(paste(ped_df$Year, ped_df$Month, ped_df$Mdate, sep = "-"))
   
   ped_testdf <- filter(ped_df, Sensor_ID == 1)
 for (i in 1:nrow(ped_testdf)){
-  if (ped_testdf$Date_Time[i] %in% pub_hdays$Date[pub_hdays$VIC == 1]) {
+  if (ped_testdf$Date[i] %in% pub_hdays$Date[pub_hdays$VIC == 1]) {
       ped_testdf$HDay[i] <- "Holiday"
   }
   else {ped_testdf$HDay[i] <- ped_testdf$Day[i]}
