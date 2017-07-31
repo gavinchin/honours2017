@@ -1,9 +1,8 @@
 
-
-library(readr)
-library(dplyr)
+library(tidyverse)
 library(purrr)
-library(ggplot2)
+library(magrittr)
+library(lubridate)
 library(knitr)
 library(lubridate)
 library(tidytext)
@@ -51,12 +50,58 @@ for (i in 1:nrow(ped_testdf)){
   
 }
 ####
-  nobs <- nrow(ped_testdf)
+## earo's code
+  # Make missing values explict
 
-  full_obs_seq <- as.list(seq(ISOdatetime(2014, 1, 1, 0, 0, 0), ISOdatetime(2017, 1, 1, 0, 0, 0), by = "hour"))
-    
-  df_train <- ped_testdf
-   
-  full_df <- 0
-  full_df$Time <- hour(full_obs_seq)
+  ped_df <- read_csv("data/Pedestrian_volume__updated_monthly_.csv")
+  
+  ped_df <- ped_df %>%
+    mutate(Date_Time = dmy_hm(Date_Time))
+  
+  df_time <- ped_df %>% 
+    split(.$Sensor_ID) %>% 
+    map(extract2, "Date_Time") %>% 
+    map(full_seq, period = 3600)
+  sensors_ls <- ped_df %>% 
+    distinct(Sensor_ID, Sensor_Name) %>% 
+    arrange(Sensor_ID) %>% 
+    split(.$Sensor_ID)
+  df_time <- map2(df_time, sensors_ls, data.frame) %>% 
+    map(set_colnames, c("Date_Time", "Sensor_ID", "Sensor_Name"))
+  
+  ped_full <- ped_df %>% 
+    split(.$Sensor_ID) %>% 
+    map2(df_time, right_join, 
+         by = c("Date_Time", "Sensor_ID", "Sensor_Name")) %>% 
+    bind_rows()
+  
+  ped_full <- ped_full %>% 
+    mutate(
+      Year = year(Date_Time),
+      Month = as.character(month(Date_Time, label = TRUE)),
+      Mdate = day(Date_Time),
+      Day = as.character(wday(Date_Time, label = TRUE)),
+      Time = hour(Date_Time),
+      Date = as_date(Date_Time),
+      Holiday = if_else(Date %in% pub_hdays$Date, "Y", "N"),
+      HDay = if_else(Holiday == "Y", "Holiday", Day)
+    )
+  
+  # Fit a glm model using dummies
+  mlevels <- unique(ped_full$Month)
+  dlevels <- unique(ped_full$Day)[c(6:7, 1:5)]
+  hdlevels <- unique(ped_full$HDay)[c(7:8, 2:6, 1)]
+  ped_dummy <- ped_full %>% 
+    mutate(
+      Year = factor(Year, levels = 2014:2016),
+      Month = factor(Month, levels = mlevels),
+      Day = factor(Day, levels = dlevels),
+      HDay = factor(HDay, levels = hdlevels),
+      Time = factor(Time, levels = 0:23)
+    )
+  
+  ped_list <- ped_dummy %>% 
+    split(.$Sensor_ID)
+  fit_test <- ped_list$`1`
+system.time(fitglm <- glm(Hourly_Counts ~ Month + HDay*Time, data = fit_test, family = 'poisson'))
   
