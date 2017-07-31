@@ -1,16 +1,25 @@
 # Make missing values explict
-df_time <- sub_ped %>% 
+library(purrr)
+library(magrittr)
+library(tidyr)
+library(dplyr)
+library(lubridate)
+
+ped_df <- ped_df %>%
+  mutate(Date_Time = dmy_hm(Date_Time))
+
+df_time <- ped_df %>% 
   split(.$Sensor_ID) %>% 
   map(extract2, "Date_Time") %>% 
   map(full_seq, period = 3600)
-sensors_ls <- sub_ped %>% 
+sensors_ls <- ped_df %>% 
   distinct(Sensor_ID, Sensor_Name) %>% 
   arrange(Sensor_ID) %>% 
   split(.$Sensor_ID)
 df_time <- map2(df_time, sensors_ls, data.frame) %>% 
   map(set_colnames, c("Date_Time", "Sensor_ID", "Sensor_Name"))
 
-ped_full <- sub_ped %>% 
+ped_full <- ped_df %>% 
   split(.$Sensor_ID) %>% 
   map2(df_time, right_join, 
        by = c("Date_Time", "Sensor_ID", "Sensor_Name")) %>% 
@@ -24,7 +33,7 @@ ped_full <- ped_full %>%
     Day = as.character(wday(Date_Time, label = TRUE)),
     Time = hour(Date_Time),
     Date = as_date(Date_Time),
-    Holiday = if_else(Date %in% pub_holiday$date, "Y", "N"),
+    Holiday = if_else(Date %in% pub_hdays$Date, "Y", "N"),
     HDay = if_else(Holiday == "Y", "Holiday", Day)
   )
 
@@ -50,7 +59,7 @@ ped_fit <- ped_list %>%
     family = poisson())
   )
 
-ped_resid <- sub_ped %>% 
+ped_resid <- ped_df %>% 
   split(.$Sensor_ID) %>% 
   map(select, Date_Time) %>% 
   map2(ped_fit, ~ mutate(.x, Residuals = residuals(.y))) %>% 

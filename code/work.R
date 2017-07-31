@@ -55,5 +55,8 @@ for (i in 1:nrow(ped_testdf)){
 
   full_obs_seq <- as.list(seq(ISOdatetime(2014, 1, 1, 0, 0, 0), ISOdatetime(2017, 1, 1, 0, 0, 0), by = "hour"))
     
-    
+  df_train <- ped_testdf
+   
+  full_df <- 0
+  full_df$Time <- hour(full_obs_seq)
   
