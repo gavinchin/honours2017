@@ -103,5 +103,12 @@ for (i in 1:nrow(ped_testdf)){
   ped_list <- ped_dummy %>% 
     split(.$Sensor_ID)
   fit_test <- ped_list$`1`
+  
+### 20 seconds to run single GLM  
 system.time(fitglm <- glm(Hourly_Counts ~ Month + HDay*Time, data = fit_test, family = 'poisson'))
   
+system.time(ped_fit <- ped_list %>% 
+  map(arrange, Date_Time) %>% 
+  map(~ glm(Hourly_Counts ~ Year * HDay * Time + Month, data = .,
+            family = poisson()))
+  )
