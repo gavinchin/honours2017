@@ -118,16 +118,32 @@ system.time(fitglm <- glm(Hourly_Counts ~ Month + HDay*Time, data = fit_test, fa
 #             family = poisson()))
 #   )
 
+## working, only takes 387 seconds
 ped_fit <- list()
-system.time(for (i in 1:3) {
+system.time(for (i in 1:43) {
   fit_test <- ped_list[[i]]
   ped_fit[[i]] <- glm(Hourly_Counts ~ Month + HDay*Time, data = fit_test, family = 'poisson')
 })
 
 
+# Error in .f(.x[[i]], ...) : object 'Date_Time' not found
+system.time(
+  ped_resid <- ped_df %>% filter(Date_Time > "2013-12-31") %>% split(.$Sensor_ID) %>%
+              map(dplyr::select, Date_Time) %>%
+              map2(ped_fit, ~ mutate(.x, Residuals = residuals(.y))) %>%
+              map2(ped_list, ~ right_join(.x, .y, by = "Date_Time")) %>%
+              bind_rows()
+            )
 
+ped_resid <- list()
+# ped_list %>% map(select_(Date_Time)) %>% 
+#   map2(ped_fit, ~ mutate(.x, Residuals = residuals(.y))) %>%
+#   map2(ped_list, ~ right_join(.x, .y, by = "Date_Time")) %>%
+#   bind_rows()
+# )
 
-
-
+for (i in 1:43) {
+  ped_list[[i]] %>% select_("Date_Time") %>% map2(ped_fit[[i]], ~ mutate(.x, Residuals = residuals(.y)))
+}
 
 
