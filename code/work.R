@@ -100,15 +100,34 @@ for (i in 1:nrow(ped_testdf)){
       Time = factor(Time, levels = 0:23)
     )
   
-  ped_list <- ped_dummy %>% 
+  ped_list <- ped_dummy %>% filter(Date > "2013-12-31") %>%
     split(.$Sensor_ID)
-  fit_test <- ped_list$`1`
   
-### 20 seconds to run single GLM  
+  fit_test <- ped_list$`2`
+### 20 seconds to run single GLM for sensor id 1, without filtering < 2014
+  # 7 seconds if filter for only use post-2014 data
 system.time(fitglm <- glm(Hourly_Counts ~ Month + HDay*Time, data = fit_test, family = 'poisson'))
   
-system.time(ped_fit <- ped_list %>% 
-  map(arrange, Date_Time) %>% 
-  map(~ glm(Hourly_Counts ~ Year * HDay * Time + Month, data = .,
-            family = poisson()))
-  )
+# not working
+# Error in `contrasts<-`(`*tmp*`, value = contr.funs[1 + isOF[nn]]) : 
+# contrasts can be applied only to factors with 2 or more levels
+# Timing stopped at: 2008.54 70.098 2219.358 
+# system.time(ped_fit <- ped_list %>% 
+#   map(arrange, Date_Time) %>% 
+#   map(~ glm(Hourly_Counts ~ Year * HDay * Time + Month, data = .,
+#             family = poisson()))
+#   )
+
+ped_fit <- list()
+system.time(for (i in 1:3) {
+  fit_test <- ped_list[[i]]
+  ped_fit[[i]] <- glm(Hourly_Counts ~ Month + HDay*Time, data = fit_test, family = 'poisson')
+})
+
+
+
+
+
+
+
+
