@@ -7,18 +7,23 @@ library(knitr)
 library(lubridate)
 library(tidytext)
 library(speedglm)
+library(SpatioTemporal)
 
 ped_df <- read_csv("data/Pedestrian_volume__updated_monthly_.csv")
 
   ped_df$Month <- as.factor(ped_df$Month)
   ped_df$Month <- factor(ped_df$Month, levels(ped_df$Month)[c(5,4,8,1,9,7,6,2,12,11,10,3)])
   ped_df$Time <- as.factor(ped_df$Time)
-  ped_df$Timeplot <- as.integer(ped_df$Time)
-  ped_df$MTime <- as.integer(ped_df$Time) + ((as.integer(ped_df$Mdate)-1) * 24)
   ped_df$Day <- as.factor(ped_df$Day)
   ped_df$Day <- factor(ped_df$Day, levels(ped_df$Day)[c(2,6,7,5,1,3,4)])
 
 ped_loc <- read_csv("data/Pedestrian_sensor_locations.csv")
+
+for (i in 1:dim(ped_loc)[1])
+{
+  ped_df$Lat[ped_df$Sensor_ID == ped_loc$`Sensor ID`[i]] <- ped_loc$Latitude[i]
+  ped_df$Lon[ped_df$Sensor_ID == ped_loc$`Sensor ID`[i]] <- ped_loc$Longitude[i]
+}
 
 ##############################################################################
 ## generate variable for day of the week/public holiday factor, HDay
@@ -119,6 +124,7 @@ system.time(fitglm <- glm(Hourly_Counts ~ Month + HDay*Time, data = fit_test, fa
 #   )
 
 ## working, only takes 387 seconds
+
 ped_fit <- list()
 system.time(for (i in 1:43) {
   fit_test <- ped_list[[i]]
@@ -127,13 +133,12 @@ system.time(for (i in 1:43) {
 
 
 # Error in .f(.x[[i]], ...) : object 'Date_Time' not found
-system.time(
+
   ped_resid <- ped_df %>% filter(Date_Time > "2013-12-31") %>% split(.$Sensor_ID) %>%
-              map(dplyr::select, Date_Time) %>%
+              map(select, Date_Time) %>%
               map2(ped_fit, ~ mutate(.x, Residuals = residuals(.y))) %>%
               map2(ped_list, ~ right_join(.x, .y, by = "Date_Time")) %>%
               bind_rows()
-            )
 
 ped_resid <- list()
 # ped_list %>% map(select_(Date_Time)) %>% 
@@ -145,5 +150,18 @@ ped_resid <- list()
 for (i in 1:43) {
   ped_list[[i]] %>% select_("Date_Time") %>% map2(ped_fit[[i]], ~ mutate(.x, Residuals = residuals(.y)))
 }
+
+nr_ped_list <- vapply(ped_list, nrow, integer(1))
+na_idx <- ped_list %>% 
+  map(~ which(is.na(.$Hourly_Counts)))
+na_datetime <- ped_list %>% 
+  map2(na_idx, ~ .x$Date_Time[.y])
+
+
+
+
+
+
+
 
 
