@@ -1,9 +1,10 @@
-library(lubridate)
 library(tidyverse)
+library(lubridate)
 library(readr)
 library(dplyr)
 library(tidyr)
-library(rwalkr)
+# devtools::install_github("earowang/rwalkr")
+# library(rwalkr)
 
 ped_df <- read_csv("data/ped_df.csv")
 ped_df$X1 <- NULL
@@ -34,8 +35,6 @@ ggplot(ped_df %>% filter(Sensor == "State Library")) +
     
     ped_df$HDay <- 0
     
-    hday_14_16 <- data.frame()
-    
     dates1 <- seq(as.Date(head(ped_df$Date, 1)), as.Date(tail(ped_df$Date, 1)), by = "day")
     hdayvals <- rep(0, length(dates1))
     hdayvals[dates1 %in% pub_hdays$Date[pub_hdays$VIC == 1]] <- 1
@@ -46,8 +45,32 @@ ggplot(ped_df %>% filter(Sensor == "State Library")) +
     ped_df$HDay <- ped_df$Day
     levels(ped_df$HDay) <- c(levels(ped_df$Day), "Holiday")
         ped_df$HDay[ped_df$IsHDay == 1] <- "Holiday"
+    ped_df$Month <- month(ped_df$Date, label = TRUE, abbr = TRUE)
     
+    ped_list <- ped_df %>% split(.$Sensor)
+    p <- progress_estimated(43)
+    ped_fit <- list()  
+      for (i in 1:43) {
+        p$tick()$print()
+        fit_data <- ped_list[[i]]
+        ped_fit[[i]] <- glm(Count ~ Month*HDay*Time, data = fit_data, family = 'poisson')
+        }
+
+    fitted_dummy <- ped_fit %>% 
+      map2(ped_list, ~ predict(.x, newdata = .y[, -1], type = "response"))
+
+      for (i in 1:43) {
+        ped_list[[i]]$Fitted <- fitted_dummy[[i]]
+      }
     
+    ped_df_withfit <- ped_df
+    countscol <- data.frame()
+      for (i in 1:43) {
+          for (j in 1:31536) {
+            countscol <- rbind(countscol, as.data.frame(fitted_dummy[[i]][i+j]))
+          }
+        
+        }
     
-    
+    ped_df_withfit$Fitted <- countscol    
     
