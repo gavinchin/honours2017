@@ -1,8 +1,5 @@
 library(tidyverse)
 library(lubridate)
-library(readr)
-library(dplyr)
-library(tidyr)
 # devtools::install_github("earowang/rwalkr")
 # library(rwalkr)
 
@@ -11,6 +8,7 @@ ped_df$X1 <- NULL
 ped_df$Date_Time <- ymd_h(paste(ped_df$Date, ped_df$Time))
 ped_df$Day <- wday(ped_df$Date, label = TRUE, abbr = FALSE)
 
+ped_loc <- read_csv("data/Pedestrian_sensor_locations.csv")
 
 glimpse(ped_df)
 
@@ -63,14 +61,28 @@ ggplot(ped_df %>% filter(Sensor == "State Library")) +
         ped_list[[i]]$Fitted <- fitted_dummy[[i]]
       }
     
-    ped_df_withfit <- ped_df
-    countscol <- data.frame()
-      for (i in 1:43) {
-          for (j in 1:31536) {
-            countscol <- rbind(countscol, as.data.frame(fitted_dummy[[i]][i+j]))
-          }
-        
-        }
     
-    ped_df_withfit$Fitted <- countscol    
+  ## clustering of glm coefficients
+
+          fit_coeff <- data.frame()
+          
+        for (i in 1:43) {
+          coeff <- as.data.frame(ped_fit[[i]]$coefficients)
+          coeff$var <- rownames(coeff)
+          coeff$ID <- i
+          fit_coeff <- rbind.data.frame(fit_coeff, coeff)
+          
+        }  
+    
+    rownames(fit_coeff) <- NULL
+    colnames(fit_coeff) <- c("coefficient", "variable", "id")
+    
+    sensor_names <- sort(ped_loc$`Sensor Description`)
+    glm_coeffs <- fit_coeff %>% spread(variable, coefficient)
+    glm_coeffs$location <- sensor_names
+    
+    cluster_glm_coeff <- hclust(dist(glm_coeffs[, -1], method = "manhattan"))
+    
+    ggplot(filter(ped_list[[16]], Date > "2017-06-30")) + geom_line(aes(x = Date_Time, y = Count), colour = "blue") + geom_line(aes(x = Date_Time, y = Fitted), colour = "red")
+    
     
