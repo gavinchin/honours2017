@@ -6,6 +6,8 @@ library(ggdendro)
 
 # devtools::install_github("earowang/rwalkr")
 # library(rwalkr)
+### for windows ###
+# memory.limit(size = 12800)
 
 ped_df <- read_csv("data/ped_df.csv")
 ped_df$X1 <- NULL
@@ -89,7 +91,7 @@ rownames(glm_coeffs) <- sensor_names
 
 hcluster_glm_coeff <- hclust(dist(glm_coeffs[, -1]))
 plot(hcluster_glm_coeff)
-ggdendrogram(cluster_glm_coeff, rotate = T)
+ggdendrogram(hcluster_glm_coeff, rotate = T)
 
 kclust <- kmeans(x = dist(glm_coeffs[, -1]), centers = 5)
 glm_coeffs$kmeansgroup <- kclust$cluster
