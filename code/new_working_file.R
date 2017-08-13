@@ -315,14 +315,26 @@ for (i in 1:43) {
   ped_list[[i]]$Fitted7Resid <- fitted_dummy7[[i]] - ped_list[[i]]$Count
 }
 
+
+  #resid
 ggplot(ped_list[[23]]) + geom_point(aes(x = Time, y = Fitted7Resid),
                                    colour = 'black', alpha = 0.05) +
                         geom_point(aes(x = Time, y = Fitted6Resid),
                                    colour = 'red', alpha = 0.015) +
   facet_wrap(~ HDay)
-
+  #resid^2
 ggplot(ped_list[[23]]) + geom_point(aes(x = Time, y = I(Fitted7Resid^2)),
                                       colour = 'black', alpha = 0.05) +
                          geom_point(aes(x = Time, y = I(Fitted6Resid^2)),
                                       colour = 'red', alpha = 0.05) +
+  facet_wrap(~ HDay)
+
+
+# plots
+ggplot(ped_list[[23]]) + geom_path(aes(x = Time, y = Count), colour = 'black',
+                                   alpha = 0.05) +
+  geom_path(aes(x = Time, y = Fitted7), colour = 'blue',
+            alpha = 0.05) +
+  geom_path(aes(x = Time, y = Fitted5), colour = 'red',
+            alpha = 0.025) +
   facet_wrap(~ HDay)
