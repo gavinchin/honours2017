@@ -241,3 +241,34 @@ ggplot(ped_list[[37]]) + geom_path(aes(x = Time, y = Count), colour = 'black',
             alpha = 0.025) +
   facet_wrap(~ HDay)
 
+# clustering of glm coefficients
+
+fit_coeff2 <- data.frame()
+
+for (i in 1:43) {
+  coeff <- as.data.frame(ped_fit6[[i]]$coefficients)
+  coeff$var <- rownames(coeff)
+  coeff$ID <- i
+  fit_coeff2 <- rbind.data.frame(fit_coeff2, coeff)
+}
+
+rownames(fit_coeff2) <- NULL
+colnames(fit_coeff2) <- c("coefficient", "variable", "id")
+
+sensor_names <- sort(ped_loc$`Sensor Description`)
+glm_coeffs2 <- fit_coeff2 %>% spread(variable, coefficient)
+
+rownames(glm_coeffs2) <- sensor_names
+
+hcluster_glm_coeff2 <- hclust(dist(glm_coeffs2[, -1]))
+plot(hcluster_glm_coeff2)
+ggdendrogram(hcluster_glm_coeff2, rotate = T)
+
+kclust2 <- kmeans(x = dist(glm_coeffs2[, -1]), centers = 5)
+glm_coeffs2$kmeansgroup <- kclust2$cluster
+
+glm_coeffs2$location <- sensor_names
+
+cluster_glm_coeff2 <- hclust(dist(glm_coeffs2[, -1], method = "manhattan"))
+plot(cluster_glm_coeff2)
+
