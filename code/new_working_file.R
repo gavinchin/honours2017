@@ -230,15 +230,30 @@ for (i in 1:43) {
 fitted_dummy6 <- ped_fit6 %>% 
   map2(ped_list_4, ~ predict(.x, newdata = .y[, -1], type = "response"))
 
+## improved glm model plot
 for (i in 1:43) {
   ped_list[[i]]$Fitted6 <- fitted_dummy6[[i]]
 }
-ggplot(ped_list[[37]]) + geom_path(aes(x = Time, y = Count), colour = 'black',
+
+ggplot(ped_list[[23]]) + geom_path(aes(x = Time, y = Count), colour = 'black',
                                    alpha = 0.05) +
   geom_path(aes(x = Time, y = Fitted6), colour = 'blue',
             alpha = 0.05) +
   geom_path(aes(x = Time, y = Fitted5), colour = 'red',
             alpha = 0.025) +
+  facet_wrap(~ HDay)
+
+ ## plotting residuals
+for (i in 1:43) {
+  ped_list[[i]]$Fitted6Resid <- fitted_dummy6[[i]] - ped_list[[i]]$Count
+}
+
+ggplot(ped_list[[23]]) + geom_path(aes(x = Time, y = Fitted6Resid),
+                                   colour = 'black', alpha = 0.05) +
+                         facet_wrap(~ HDay)
+
+ggplot(ped_list[[23]]) + geom_path(aes(x = Time, y = I(Fitted6Resid^2)),
+                                   colour = 'black', alpha = 0.05) +
   facet_wrap(~ HDay)
 
 # clustering of glm coefficients
@@ -272,3 +287,42 @@ glm_coeffs2$location <- sensor_names
 cluster_glm_coeff2 <- hclust(dist(glm_coeffs2[, -1], method = "manhattan"))
 plot(cluster_glm_coeff2)
 
+#######################
+
+p <- progress_estimated(43)
+ped_fit7 <- list() 
+for (i in 1:43) {
+  p$tick()$print()
+  fit_data <- ped_list_4[[i]]
+  ped_fit7[[i]] <- glm(Count ~ Month + DayType_Time, data = fit_data,
+                       family = 'quasipoisson')
+}
+
+fitted_dummy7 <- ped_fit7 %>% 
+  map2(ped_list_4, ~ predict(.x, newdata = .y[, -1], type = "response"))
+
+## improved glm model plot no2
+for (i in 1:43) {
+  ped_list[[i]]$Fitted7 <- fitted_dummy7[[i]]
+}
+ggplot(ped_list[[23]]) + geom_path(aes(x = Time, y = Count), colour = 'black',
+                                   alpha = 0.05) +
+  geom_path(aes(x = Time, y = Fitted7), colour = 'blue',
+            alpha = 0.05) +
+  facet_wrap(~ HDay)
+
+for (i in 1:43) {
+  ped_list[[i]]$Fitted7Resid <- fitted_dummy7[[i]] - ped_list[[i]]$Count
+}
+
+ggplot(ped_list[[23]]) + geom_point(aes(x = Time, y = Fitted7Resid),
+                                   colour = 'black', alpha = 0.05) +
+                        geom_point(aes(x = Time, y = Fitted6Resid),
+                                   colour = 'red', alpha = 0.015) +
+  facet_wrap(~ HDay)
+
+ggplot(ped_list[[23]]) + geom_point(aes(x = Time, y = I(Fitted7Resid^2)),
+                                      colour = 'black', alpha = 0.05) +
+                         geom_point(aes(x = Time, y = I(Fitted6Resid^2)),
+                                      colour = 'red', alpha = 0.05) +
+  facet_wrap(~ HDay)
