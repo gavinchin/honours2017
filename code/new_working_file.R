@@ -37,7 +37,8 @@ vic_p_hday <- filter(pub_hdays, VIC == 1)
 
 ped_df$HDay <- 0
 
-dates1 <- seq(as.Date(head(ped_df$Date, 1)), as.Date(tail(ped_df$Date, 1)), by = "day")
+dates1 <- seq(as.Date(head(ped_df$Date, 1)), as.Date(tail(ped_df$Date, 1)),
+              by = "day")
 hdayvals <- rep(0, length(dates1))
 hdayvals[dates1 %in% pub_hdays$Date[pub_hdays$VIC == 1]] <- 1
 dates2 <- as.Date(rep(dates1, each = 43*24))
@@ -55,7 +56,8 @@ ped_fit <- list()
 for (i in 1:43) {
   p$tick()$print()
   fit_data <- ped_list[[i]]
-  ped_fit[[i]] <- glm(Count ~ Month + HDay*Time, data = fit_data, family = 'poisson')
+  ped_fit[[i]] <- glm(Count ~ Month + HDay*Time, data = fit_data,
+                      family = 'poisson')
 }
 
 fitted_dummy <- ped_fit %>% 
@@ -99,9 +101,143 @@ ggplot(filter(ped_list[[12]], Date > "2017-06-30")) +
 glm_coeffs$location <- sensor_names
 
 cluster_glm_coeff <- hclust(dist(glm_coeffs[, -1], method = "manhattan"))
+plot(cluster_glm_coeff)
 
 ggplot(filter(ped_list[[16]], Date > "2017-06-30")) +
   geom_line(aes(x = Date_Time, y = Count), colour = "blue") +
   geom_line(aes(x = Date_Time, y = Fitted), colour = "red")
 
+ped_df$Wk <- week(ped_df$Date)
+ped_df$HDayTime <- paste(ped_df$HDay, ped_df$Time, sep = "_")
+
+ped_list_2 <- ped_df %>% split(.$Sensor)
+
+p <- progress_estimated(43)
+ped_fit2 <- list()  
+for (i in 1:43) {
+  p$tick()$print()
+  fit_data <- ped_list[[i]]
+  ped_fit2[[i]] <- glm(Count ~ Month + HDay*Time, data = fit_data,
+                       family = 'gaussian')
+}
+
+fitted_dummy2 <- ped_fit2 %>% 
+  map2(ped_list, ~ predict(.x, newdata = .y[, -1], type = "response"))
+
+for (i in 1:43) {
+  ped_list[[i]]$Fitted2 <- fitted_dummy2[[i]]
+}
+
+ggplot(filter(ped_list[[12]], Date > "2017-06-30")) +
+  geom_line(aes(x = Date_Time, y = Count), colour = "blue") +
+  geom_line(aes(x = Date_Time, y = Fitted), colour = "red") +
+  geom_line(aes(x = Date_Time, y = Fitted2), colour = "green")
+
+p <- progress_estimated(43)
+ped_fit3 <- list() 
+for (i in 1:43) {
+  p$tick()$print()
+  fit_data <- ped_list_2[[i]]
+  ped_fit3[[i]] <- glm(Count ~ HDayTime, data = fit_data, family = 'gaussian')
+}
+
+fitted_dummy3 <- ped_fit3 %>% 
+  map2(ped_list_2, ~ predict(.x, newdata = .y[, -1], type = "response"))
+
+for (i in 1:43) {
+  ped_list[[i]]$Fitted3 <- fitted_dummy3[[i]]
+}
+
+
+ggplot(filter(ped_list[[12]], Date > "2017-06-30")) +
+  geom_line(aes(x = Date_Time, y = Count), colour = "blue") +
+  geom_line(aes(x = Date_Time, y = Fitted), colour = "red") +
+  geom_line(aes(x = Date_Time, y = Fitted2), colour = "green") +
+  geom_line(aes(x = Date_Time, y = Fitted3), colour = "orange")
+
+p <- progress_estimated(43)
+ped_fit4 <- list() 
+for (i in 1:43) {
+  p$tick()$print()
+  fit_data <- ped_list_2[[i]]
+  ped_fit4[[i]] <- glm(Count ~ Month + HDayTime, data = fit_data,
+                       family = 'poisson')
+}
+
+fitted_dummy4 <- ped_fit4 %>% 
+  map2(ped_list_2, ~ predict(.x, newdata = .y[, -1], type = "response"))
+
+for (i in 1:43) {
+  ped_list[[i]]$Fitted4 <- fitted_dummy4[[i]]
+}
+
+
+ggplot(filter(ped_list[[4]], Date > "2017-06-30")) +
+  geom_line(aes(x = Date_Time, y = Count), colour = "blue") +
+  geom_line(aes(x = Date_Time, y = Fitted), colour = "red") +
+  geom_line(aes(x = Date_Time, y = Fitted2), colour = "green") +
+  geom_line(aes(x = Date_Time, y = Fitted3), colour = "orange") +
+  geom_line(aes(x = Date_Time, y = Fitted4), colour = "lightblue")
+
+ggplot(ped_list[[23]]) + 
+  geom_path(aes(x = Time, y = Count),     colour = 'black', alpha = 0.05) +
+  geom_smooth(aes(x = Time, y = Fitted4), colour = 'blue', alpha = 0.25) +
+  geom_smooth(aes(x = Time, y = Fitted),  colour = 'green', alpha = 0.25) +
+  geom_smooth(aes(x = Time, y = Fitted3), colour = 'yellow', alpha = 0.25) +
+  facet_wrap(~ HDay)
+
+ped_df$DayType <- ifelse(ped_df$Day == "Sunday", "Sunday",
+                  ifelse(ped_df$Day == "Saturday", "Saturday",
+                  ifelse(ped_df$Day == "Monday", "Monday",
+                  ifelse(ped_df$Day == "Friday", "Friday",
+                                                 "Midweek"))))
+ped_df$DayType[ped_df$IsHDay == 1] <- "Holiday"
+ped_df$DayType_Time <- paste(ped_df$DayType, ped_df$Time, sep = "_")
+ped_list_4 <- ped_df %>% split(.$Sensor)
+
+p <- progress_estimated(43)
+ped_fit5 <- list() 
+for (i in 1:43) {
+  p$tick()$print()
+  fit_data <- ped_list_4[[i]]
+  ped_fit5[[i]] <- glm(Count ~ Month + DayType_Time, data = fit_data,
+                       family = 'poisson')
+}
+
+fitted_dummy5 <- ped_fit5 %>% 
+  map2(ped_list_4, ~ predict(.x, newdata = .y[, -1], type = "response"))
+
+for (i in 1:43) {
+  ped_list[[i]]$Fitted5 <- fitted_dummy5[[i]]
+}
+
+
+ggplot(ped_list[[27]]) + geom_path(aes(x = Time, y = Count), colour = 'black',
+                                   alpha = 0.05) +
+                         geom_path(aes(x = Time, y = Fitted5), colour = 'blue',
+                                   alpha = 0.05) +
+                         facet_wrap(~ HDay)
+
+p <- progress_estimated(43)
+ped_fit6 <- list() 
+for (i in 1:43) {
+  p$tick()$print()
+  fit_data <- ped_list_4[[i]]
+  ped_fit6[[i]] <- glm(Count ~ Month + DayType_Time, data = fit_data,
+                       family = 'gaussian')
+}
+
+fitted_dummy6 <- ped_fit6 %>% 
+  map2(ped_list_4, ~ predict(.x, newdata = .y[, -1], type = "response"))
+
+for (i in 1:43) {
+  ped_list[[i]]$Fitted6 <- fitted_dummy6[[i]]
+}
+ggplot(ped_list[[37]]) + geom_path(aes(x = Time, y = Count), colour = 'black',
+                                   alpha = 0.05) +
+  geom_path(aes(x = Time, y = Fitted6), colour = 'blue',
+            alpha = 0.05) +
+  geom_path(aes(x = Time, y = Fitted5), colour = 'red',
+            alpha = 0.025) +
+  facet_wrap(~ HDay)
 
