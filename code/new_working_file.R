@@ -7,7 +7,7 @@ library(ggdendro)
 # devtools::install_github("earowang/rwalkr")
 # library(rwalkr)
 ### for windows ###
-# memory.limit(size = 12800)
+memory.limit(size = 12800)
 
 ped_df <- read_csv("data/ped_df.csv")
 ped_df$X1 <- NULL
@@ -319,24 +319,39 @@ for (i in 1:43) {
 
 
   #resid
-ggplot(ped_list[[23]]) + geom_point(aes(x = Time, y = Fitted7Resid),
-                                   colour = 'black', alpha = 0.05) +
+ggplot(ped_list[[26]]) + geom_point(aes(x = Time, y = Fitted7Resid),
+                                   colour = 'black', alpha = 0.015) +
                         geom_point(aes(x = Time, y = Fitted6Resid),
                                    colour = 'red', alpha = 0.015) +
-  facet_wrap(~ HDay)
-  #resid^2
+                        geom_hline(yintercept = 0, size = 2, colour = 'blue') +
+                        facet_wrap(~ HDay)
+  mean(ped_list[[23]]$Fitted7Resid)
+  sum(ped_list[[23]]$Fitted6Resid)
+#resid^2
 ggplot(ped_list[[23]]) + geom_point(aes(x = Time, y = I(Fitted7Resid^2)),
                                       colour = 'black', alpha = 0.05) +
                          geom_point(aes(x = Time, y = I(Fitted6Resid^2)),
                                       colour = 'red', alpha = 0.05) +
-  facet_wrap(~ HDay)
+                         facet_wrap(~ HDay)
+##MSE
+mse_fit6 <- numeric()
 
+  for (i in 1:43) {
+    mse <- mean((na.omit(ped_list[[i]]$Fitted6 - ped_list[[i]]$Count))^2)
+    mse_fit6[i] <- mse
+  }
+mse_fit7 <- numeric()
 
+for (i in 1:43) {
+  mse <- mean((na.omit(ped_list[[i]]$Fitted7 - ped_list[[i]]$Count))^2)
+  mse_fit7[i] <- mse
+}
+
+sum(mse_fit6)
+sum(mse_fit7)
 # plots
 ggplot(ped_list[[23]]) + geom_path(aes(x = Time, y = Count), colour = 'black',
                                    alpha = 0.05) +
   geom_path(aes(x = Time, y = Fitted7), colour = 'blue',
-            alpha = 0.05) +
-  geom_path(aes(x = Time, y = Fitted5), colour = 'red',
-            alpha = 0.025) +
+            alpha = 0.35) +
   facet_wrap(~ HDay)
