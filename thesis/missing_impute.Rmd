@@ -1,0 +1,189 @@
+---
+title: "Imputation of Missing Values in the Melbourne CBD Pedestrian Dataset"
+output: html_notebook
+---
+
+```{r, echo = FALSE}
+library(plyr)
+library(tidyverse)
+library(lubridate)
+library(magrittr)
+## devtools::install_github("earowang/rwalkr")
+library(rwalkr)
+# 
+# ped_2014 <- run_melb(year = 2014)
+# ped_2015 <- run_melb(year = 2015)
+# ped_2016 <- run_melb(year = 2016)
+# ped_2017 <- run_melb(year = 2017)
+# 
+# ped_data <- bind_rows(ped_2014, ped_2015, ped_2016, ped_2017)
+
+ped_data <- walk_melb(from = "2014-01-01")
+# ped_data <- read_csv("../data/ped_df.csv")
+# ped_data$X1 <- NULL
+ped_data$Sensor_ID <- ped_data$Sensor
+ped_data$Hourly_Counts <- ped_data$Count
+ped_data$Date_Time <- ymd_h(paste(ped_data$Date, ped_data$Time, sep = " "))
+ped_data$Day <- wday(ped_data$Date_Time, label = T, abbr = F)
+ped_data$Month <- month(ped_data$Date_Time, label = T, abbr = F)
+ped_data$Time <- as.factor(ped_data$Time)
+
+# for offline use
+# ped_dat <- read_csv(file = "../data/ped_df_2.csv")
+# ped_data <- ped_dat %>%
+#  mutate(
+#    Date_Time = as.POSIXct(strptime(Date_Time, format = "%d-%B-%Y %H:%M"),
+#      tz = ""),
+#    ID = NULL,
+#    Mdate = as.integer(Mdate),
+#    Hourly_Counts = as.integer(Hourly_Counts),
+#    Sensor_ID = as.integer(Sensor_ID),
+#    Time = as.integer(Time),
+#    Year = as.integer(Year)
+#  ) %>% as.data.frame() %>%
+#  filter(Date_Time > "2013-12-31 23:00:01") %>%
+#  arrange(Date_Time)
+
+# rm(ped_dat)
+
+# ped_loc <- read_csv("../data/Pedestrian_sensor_locations.csv")
+```
+
+```{r}
+## making missings explicit
+# dates11 <- full_seq(ped_data$Date_Time, period = 3600)
+# id_seq <- rep(1:43, no_T)
+# 
+# ped_full_seq <- data.frame(Date_Time = dates11, Sensor_ID = id_seq)
+# 
+# ped_full <- merge(ped_data, ped_full_seq, all.y = T)
+# 
+# unique(ped_data$Date_Time) %>% length()
+# 
+#   df_t <- list()
+#   no_T <- nrow(as.data.frame(dates11))
+#     for (i in 1:43) {
+#     i_id <- rep(i, no_T)
+#     df_t[[i]] <- data.frame(Date_Time = dates11, Sensor_ID = i_id)
+#     }
+#   
+#   
+#   
+#   ped_full <- list()
+#   ped_list_d <- ped_data %>% split(.$Sensor_ID)
+#     for (i in 1:43) {
+#     df <- ped_list_d[[i]]
+#     ped_full[[i]] <- right_join(df, df_t[[i]], by = "Date_Time")
+#     }
+#   ped_data <- bind_rows(ped_full) %>% arrange(Date_Time) %>%
+#     mutate(Mdate = mday(Date_Time),
+#            Day = wday(Date_Time, label = T, abbr = F),
+#            Time = hour(Date_Time),
+#            Year = year(Date_Time),
+#            Month = month(Date_Time, label = T, abbr = F),
+#            ID = NULL,
+#            Sensor_Name = NULL)
+#   
+#   ped_names <- ped_loc %>% select(`Sensor ID`, `Sensor Description`)
+#   colnames(ped_names) <- c("Sensor_ID", "Sensor_Name")
+#   
+#   ped_data <- ped_data %>% left_join(ped_names)
+#   
+#   ped_a <- ped_data %>% split(.$Sensor_ID)
+#   ped_n <- numeric()
+#   for (i in 1:43) {
+#     ped_n[i] <- nrow(df_t[[i]])
+#   }
+#   
+#   sum(ped_n)
+#   
+#   ad <- setdiff(as.data.frame(ped_a[[1]]$Date_Time), as.data.frame(dates1))
+```
+
+
+## Public Holiday Code
+```{r pubhdays}
+pub_hday14 <- read_csv("http://data.gov.au/dataset/b1bc6077-dadd-4f61-9f8c-002ab2cdff10/resource/56a5ee91-8e94-416e-81f7-3fe626958f7e/download/australianpublicholidays-201415.csv---australianpublicholidays.csv.csv")
+pub_hday15 <- read_csv("http://data.gov.au/dataset/b1bc6077-dadd-4f61-9f8c-002ab2cdff10/resource/13ca6df3-f6c9-42a1-bb20-6e2c12fe9d94/download/australianpublicholidays-201516.csv")
+pub_hday16 <- read_csv("http://data.gov.au/dataset/b1bc6077-dadd-4f61-9f8c-002ab2cdff10/resource/a24ecaf2-044a-4e66-989c-eacc81ded62f/download/australianpublicholidays-201617.csv")
+
+pub_hdays <- rbind(pub_hday14, pub_hday15, pub_hday16)
+
+pub_hdays$Date <- ymd(pub_hdays$Date)
+pub_hdays$Month <- pub_hdays$Date %>% month(label = TRUE, abbr = FALSE)
+pub_hdays$VIC <- 0
+pub_hdays$VIC[grep(glob2rx("*VIC*"), pub_hdays$`Applicable To`)] <- 1
+pub_hdays$VIC[grep("NAT", pub_hdays$`Applicable To`)] <- 1
+
+dates1 <- full_seq(ped_data$Date_Time, period = 3600)
+hdayvals <- rep(0, length(dates1))
+hdayvals[as.Date(dates1) %in% pub_hdays$Date[pub_hdays$VIC == 1]] <- 1
+dates2 <- as.Date(rep(dates1, each = 43))
+hdayvals2 <- as.numeric(rep(hdayvals, each = 43))
+
+ped_data$IsHDay <- hdayvals2
+ped_data$HDay <- ped_data$Day
+levels(ped_data$HDay) <- c(levels(ped_data$Day), "Holiday")
+ped_data$HDay[ped_data$IsHDay == 1] <- "Holiday"
+
+ped_data$DayType <- ifelse(ped_data$Day == "Sunday", "Sunday",
+                  ifelse(ped_data$Day == "Saturday", "Saturday",
+                  ifelse(ped_data$Day == "Monday", "Monday",
+                  ifelse(ped_data$Day == "Friday", "Friday",
+                                                 "Midweek"))))
+ped_data$DayType[ped_data$IsHDay == 1] <- "Holiday"
+
+```
+
+
+## GLM model for imputing missings
+```{r}
+ped_list <- ped_data %>% filter(Date < "2017-01-01") %>%
+            split(.$Sensor_ID)
+
+ped_coeffs <- list()
+ped_model_fitted <- list()
+ped_model_summary <- list()
+p <- progress_estimated(43)
+options(na.action = 'na.omit')
+for (i in 1:43) {
+  p$tick()$print()
+  train <- ped_list[[i]]
+  ped_model_i <- glm(Hourly_Counts ~ Month + DayType*Time,
+                     family = quasipoisson(), data = train)
+  ped_coeffs[[i]] <- ped_model_i$coefficients
+  ped_model_summary[[i]] <- summary(ped_model_i)
+}
+rm(ped_model_i)
+
+```
+
+```{r}
+test_ped <- ped_data %>% filter(Date > "2016-12-31") %>%
+            split(.$Sensor_ID)
+## required for model.matrix to allow NAs
+options(na.action = 'na.pass')
+
+for (i in 1:43) {
+  test_df <- model.matrix(Hourly_Counts ~ Month + DayType*Time,
+                          data = test_ped[[i]])
+  test_coeff <- ped_coeffs[[i]]
+  if (length(test_coeff) < ncol(test_df)) {
+    missing_cols <- setdiff(colnames(test_df), rownames(as.data.frame(test_coeff)))
+    test_df <- test_df[, !(colnames(test_df) %in% missing_cols)]
+  }
+  
+  test_preds <- exp(test_df %*% test_coeff)
+  test_ped[[i]]$Fitted <- test_preds
+}
+
+test_fitted <- bind_rows(test_ped)
+
+```
+
+```{r}
+ggplot(filter(test_fitted, Date > "2017-07-31")) + geom_line(aes(x = Date_Time, y = Hourly_Counts)) +
+                         geom_line(aes(x = Date_Time, y = Fitted), colour = "darkred", alpha = 0.75) +
+                         facet_wrap(~ Sensor)
+```
+
