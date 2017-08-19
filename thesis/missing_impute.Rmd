@@ -100,7 +100,6 @@ ped_data$Time <- as.factor(ped_data$Time)
 #   ad <- setdiff(as.data.frame(ped_a[[1]]$Date_Time), as.data.frame(dates1))
 ```
 
-
 ## Public Holiday Code
 ```{r pubhdays}
 pub_hday14 <- read_csv("http://data.gov.au/dataset/b1bc6077-dadd-4f61-9f8c-002ab2cdff10/resource/56a5ee91-8e94-416e-81f7-3fe626958f7e/download/australianpublicholidays-201415.csv---australianpublicholidays.csv.csv")
@@ -125,19 +124,22 @@ ped_data$IsHDay <- hdayvals2
 ped_data$HDay <- ped_data$Day
 levels(ped_data$HDay) <- c(levels(ped_data$Day), "Holiday")
 ped_data$HDay[ped_data$IsHDay == 1] <- "Holiday"
+```
+This code uses official public holiday data from `data.gov.au` to check if dates fall on public holidays. The code ensures only public holidays which apply to Victoria are used.
 
+## Code for Day Type
+```{r daytypecode}
 ped_data$DayType <- ifelse(ped_data$Day == "Sunday", "Sunday",
                   ifelse(ped_data$Day == "Saturday", "Saturday",
                   ifelse(ped_data$Day == "Monday", "Monday",
                   ifelse(ped_data$Day == "Friday", "Friday",
                                                  "Midweek"))))
 ped_data$DayType[ped_data$IsHDay == 1] <- "Holiday"
-
 ```
-
+Compacts the `HDay` factor into 6 levels, rather than 8 levels, by coding Tuesday, Wednesday and Thursday as factor `"Midweek"`. This is because at most locations, these days have similar patterns.
 
 ## GLM model for imputing missings
-```{r}
+```{r glm_models}
 ped_list <- ped_data %>% filter(Date < "2017-01-01") %>%
             split(.$Sensor_ID)
 
@@ -157,7 +159,12 @@ for (i in 1:43) {
 rm(ped_model_i)
 
 ```
+The code above fits a GLM model for each sensor location. This model uses a quasi-poisson distribution to allow of overdispersion. Using a standard poisson distribution would give the restriction of mean = variance.  
+The model is specified as `Hourly_Counts ~ Month + DayType * Time`, where `Month` is given an additive effect, and `DayType * Time` gives an interaction term between `DayType` and `Time`, as well as any other indirect additive effects.
+To improve efficiency, only the coefficients of the model are retained, as well as model summarries for model evaluation.  
+We train the model only on the data from 2014 to 2016. The test data set is the data available from 2017.
 
+### Test data fit
 ```{r}
 test_ped <- ped_data %>% filter(Date > "2016-12-31") %>%
             split(.$Sensor_ID)
@@ -180,10 +187,48 @@ for (i in 1:43) {
 test_fitted <- bind_rows(test_ped)
 
 ```
+Using the coefficients saved for each location, we can easily fit the test data.  
+With the function `model.matrix()`, `R` will generate a matrix, $X$, with the factor levels converted into dummy variables for use with the GLM. Then, we can obtain our estimates of $\text{Hourly_Counts}_ij$, $\widehat{\text{Hourly_Counts}_i} = \exp \left( X \hat{\beta_j} \right)$ where $\hat{\beta_j}$ is a column vector of the GLM estimated coefficients at the $j^{th}$ sensor location.
+
+# Goodness of Fit
+### Visually
+```{r}
+ggplot(filter(test_fitted, Date > "2017-07-23")) + geom_line(aes(x = Date_Time, y = Hourly_Counts)) +
+                         geom_line(aes(x = Date_Time, y = Fitted), colour = "violetred2", alpha = 0.75) +
+                         facet_wrap(~ Sensor, scales = "free_y", ncol = 5) + theme_minimal() + 
+                    theme(axis.text.x = element_text(size = 3),
+                          strip.text = element_text(size = 5),
+                          axis.text.y = element_text(size = 0)) +
+                    xlab("Date") + ylab("Hourly Counts")
+```
+Looking at plots of actuals (black) against fitted (red) of data from 24 July 2017 to 6 August 2017, we see that some sensors appear to be not operational. We see that there is a mix of very good fitting models and not so good ones. An example of of a reasonably good fitting model is the _Collins Place (North)_ sensor location:
+```{r}
+ggplot(test_fitted %>%
+         filter(Date > "2017-07-23",
+                Sensor == "Collins Place (North)")) +
+      geom_line(aes(x = Date_Time, y = Hourly_Counts)) +
+      geom_line(aes(x = Date_Time, y = Fitted), colour = 'violetred2', alpha = 0.7)
+```
+```{r}
+col_pl_test_mse <- test_fitted %>% filter(Date > "2017-07-23", Sensor == "Collins Place (North)") %>%
+               mutate(residsq = (Fitted - Hourly_Counts)^2) %>% .$residsq %>% mean()
+col_pl_test_rmse <- sqrt(col_pl_test_mse)
+```
+
+Using RMSE (root mean square error) as a goodness of fit measure, we find that the RMSE of the prediction represented in the plot above is `r col_pl_test_rmse`. 
 
 ```{r}
-ggplot(filter(test_fitted, Date > "2017-07-31")) + geom_line(aes(x = Date_Time, y = Hourly_Counts)) +
-                         geom_line(aes(x = Date_Time, y = Fitted), colour = "darkred", alpha = 0.75) +
-                         facet_wrap(~ Sensor)
+ggplot(filter(test_fitted, Sensor_ID == "Melbourne Central")) +
+  geom_path(aes(x = Time, y = Hourly_Counts, group = Date), alpha = 0.1) +
+  geom_path(aes(x = Time, y = Fitted, group = Date), colour = "violetred2", alpha = 0.1) +
+  facet_wrap(~ DayType)
+```
+
+```{r}
+ggplot(filter(ped_data, Sensor == "Collins Place (South)")) + geom_smooth(aes(x = as.integer(Time), y = Hourly_Counts, colour = Day))
+```
+
+```{r}
+
 ```
 
