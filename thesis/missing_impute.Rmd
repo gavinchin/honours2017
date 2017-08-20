@@ -13,6 +13,7 @@ library(lubridate)
 library(magrittr)
 library(viridis)
 library(gridExtra)
+library(pander)
 set.seed(12345)
 ```
 
@@ -215,13 +216,14 @@ ggplot(filter(test_fitted, Date > "2017-07-23")) +
   geom_line(aes(x = Date_Time, y = Hourly_Counts)) +
   geom_line(aes(x = Date_Time, y = Fitted),
             colour = "violetred2", alpha = 0.75) +
-                         facet_wrap(~ Sensor, scales = "free_y", ncol = 4) + theme_minimal() + 
-                    theme(axis.text.x = element_text(size = 3),
-                          strip.text = element_text(size = 10),
-                          axis.text.y = element_text(size = 0)) +
-                    xlab("Date") + ylab("Hourly Counts")
+         facet_wrap(~ Sensor, scales = "free_y", ncol = 4) + theme_minimal() + 
+    theme(axis.text.x = element_text(size = 3),
+          strip.text = element_text(size = 10),
+          axis.text.y = element_text(size = 0)) +
+    xlab("Date") + ylab("Hourly Counts") +
+    ggtitle("Plot of Actual (black) against Fitted for period 24 July 2017 to 6 August 2017")        
 ```
-Looking at plots of actuals (black) against fitted (red) of data from 24 July 2017 to 6 August 2017, we see that some sensors appear to be not operational. We see that there is a mix of very good fitting models and not so good ones. An example of of a reasonably good fitting model is the _Collins Place (North)_ sensor location:
+Looking at plots of actuals (black) against fitted of data from 24 July 2017 to 6 August 2017, we see that some sensors appear to be not operational. We see that there is a mix of very good fitting models and not so good ones. An example of of a reasonably good fitting model is the _Collins Place (North)_ sensor location:
 ```{r, fig.align= 'center', fig.retina = 1, cache=TRUE}
 ggplot(test_fitted %>%
          filter(Date > "2017-07-23",
@@ -251,13 +253,17 @@ ggplot(test_fitted %>%
 
 ```{r, echo=FALSE, cache=TRUE}
 gratt_test_rmse <- test_fitted %>% filter(Date > "2017-07-23", Sensor == "Grattan St-Swanston St (West)") %>%
-               mutate(residsq = (Fitted - Hourly_Counts)^2) %>% .$residsq %>% mean() %>% sqrt()
+               mutate(residsq = (Fitted - Hourly_Counts)^2) %>%
+              .$residsq %>% mean() %>% sqrt()
 
-gratt_test_rmse_july <- test_fitted %>% filter(Date > "2017-07-23", Date < "2017-08-01", Sensor == "Grattan St-Swanston St (West)") %>%
-               mutate(residsq = (Fitted - Hourly_Counts)^2) %>% .$residsq %>% mean() %>% sqrt()
+gratt_test_rmse_july <- test_fitted %>% filter(Date > "2017-07-23", Date < "2017-08-01",
+                                               Sensor == "Grattan St-Swanston St (West)") %>%
+               mutate(residsq = (Fitted - Hourly_Counts)^2) %>%
+              .$residsq %>% mean() %>% sqrt()
 
 gratt_test_rmse_aug <- test_fitted %>% filter(Date > "2017-07-31", Sensor == "Grattan St-Swanston St (West)") %>%
-               mutate(residsq = (Fitted - Hourly_Counts)^2) %>% .$residsq %>% mean() %>% sqrt()
+               mutate(residsq = (Fitted - Hourly_Counts)^2) %>%
+              .$residsq %>% mean() %>% sqrt()
 ```
 
 Here, the poor fit results in a RMSE of `r round(gratt_test_rmse, 4)` for the period between Jul 24 to Aug 6. It appears as though the additive effect of `Month` is exaggerated, where we see that predictions in July are significantly underestimated, compared to August predictions which have adequate fit.
@@ -279,10 +285,38 @@ ggplot(filter(ped_data, Sensor_ID == "Grattan St-Swanston St (West)")) +
   facet_wrap(~ DayType) +
       theme_minimal()
 
-ggplot(filter(ped_data, Sensor_ID == "Grattan St-Swanston St (West)")) + geom_line(aes(x = Date_Time, y = Hourly_Counts)) +
+ggplot(filter(ped_data, Sensor_ID == "Grattan St-Swanston St (West)")) +
+  geom_line(aes(x = Date_Time, y = Hourly_Counts)) +
       theme_minimal()
 ```
 
 However, we see that the variance within a month is quite low comparatively. It is worth noting that the data available at this location is very poor.  
 Plotting all available observations, we see we only have data starting from `r head(na.omit(ped_data[ped_data$Sensor_ID == "Grattan St-Swanston St (West)", ])$Date, 1)`.
+
+Computing the RMSE for all of the test set (2017 data) for each sensor:
+
+```{r}
+test_df <- test_fitted %>% mutate(residsq = (Fitted - Hourly_Counts)^2) %>%
+            split(.$Sensor_ID)
+test_df_rmse <- data.frame(Sensor_ID = rep(0,43), RMSE = rep(0, 43))
+  for (i in 1:43) {
+      test_df_rmse$Sensor_ID[i] <- names(test_df)[i]
+      test_df_rmse$RMSE[i] <- mean(test_df[[i]]$residsq) %>% sqrt()
+  }
+
+test_df_plot <- test_fitted %>% filter(Date > "2017-07-23") %>%
+            mutate(residsq = (Fitted - Hourly_Counts)^2) %>%
+            split(.$Sensor_ID)
+test_df_rmse_plot <- data.frame(Sensor_ID = rep(0,43), RMSE = rep(0, 43))
+  for (i in 1:43) {
+      test_df_rmse_plot$Sensor_ID[i] <- names(test_df_plot)[i]
+      test_df_rmse_plot$RMSE[i] <- mean(test_df_plot[[i]]$residsq) %>% sqrt()
+  }
+pander(arrange(test_df_rmse, by= RMSE))
+```
+
+
+
+
+
 
