@@ -1,15 +1,20 @@
 ---
 title: "Imputation of Missing Values in the Melbourne CBD Pedestrian Dataset"
-output: html_notebook
+output:
+  html_notebook: default
+  html_document: default
+  pdf_document: default
+  word_document: default
 ---
 
-```{r, echo = FALSE}
+```{r, echo = FALSE, message=F, warning=F, results='hide'}
 library(plyr)
 library(tidyverse)
 library(lubridate)
 library(magrittr)
+
 ## devtools::install_github("earowang/rwalkr")
-library(rwalkr)
+# library(rwalkr)
 # 
 # ped_2014 <- run_melb(year = 2014)
 # ped_2015 <- run_melb(year = 2015)
@@ -18,9 +23,9 @@ library(rwalkr)
 # 
 # ped_data <- bind_rows(ped_2014, ped_2015, ped_2016, ped_2017)
 
-ped_data <- walk_melb(from = "2014-01-01")
-# ped_data <- read_csv("../data/ped_df.csv")
-# ped_data$X1 <- NULL
+# ped_data <- walk_melb(from = "2014-01-01")
+ped_data <- read_csv("../data/ped_df.csv")
+ped_data$X1 <- NULL
 ped_data$Sensor_ID <- ped_data$Sensor
 ped_data$Hourly_Counts <- ped_data$Count
 ped_data$Date_Time <- ymd_h(paste(ped_data$Date, ped_data$Time, sep = " "))
@@ -49,7 +54,7 @@ ped_data$Time <- as.factor(ped_data$Time)
 # ped_loc <- read_csv("../data/Pedestrian_sensor_locations.csv")
 ```
 
-```{r}
+```{r missing_explicit, echo = F}
 ## making missings explicit
 # dates11 <- full_seq(ped_data$Date_Time, period = 3600)
 # id_seq <- rep(1:43, no_T)
@@ -101,11 +106,11 @@ ped_data$Time <- as.factor(ped_data$Time)
 ```
 
 ## Public Holiday Code
-```{r pubhdays}
-pub_hday14 <- read_csv("http://data.gov.au/dataset/b1bc6077-dadd-4f61-9f8c-002ab2cdff10/resource/56a5ee91-8e94-416e-81f7-3fe626958f7e/download/australianpublicholidays-201415.csv---australianpublicholidays.csv.csv")
-pub_hday15 <- read_csv("http://data.gov.au/dataset/b1bc6077-dadd-4f61-9f8c-002ab2cdff10/resource/13ca6df3-f6c9-42a1-bb20-6e2c12fe9d94/download/australianpublicholidays-201516.csv")
-pub_hday16 <- read_csv("http://data.gov.au/dataset/b1bc6077-dadd-4f61-9f8c-002ab2cdff10/resource/a24ecaf2-044a-4e66-989c-eacc81ded62f/download/australianpublicholidays-201617.csv")
 
+```{r pubhdays, message=F, warning=F}
+pub_hday14 <- read.csv("http://data.gov.au/dataset/b1bc6077-dadd-4f61-9f8c-002ab2cdff10/resource/56a5ee91-8e94-416e-81f7-3fe626958f7e/download/australianpublicholidays-201415.csv---australianpublicholidays.csv.csv", )
+pub_hday15 <- read.csv("http://data.gov.au/dataset/b1bc6077-dadd-4f61-9f8c-002ab2cdff10/resource/13ca6df3-f6c9-42a1-bb20-6e2c12fe9d94/download/australianpublicholidays-201516.csv")
+pub_hday16 <- read.csv("http://data.gov.au/dataset/b1bc6077-dadd-4f61-9f8c-002ab2cdff10/resource/a24ecaf2-044a-4e66-989c-eacc81ded62f/download/australianpublicholidays-201617.csv")
 pub_hdays <- rbind(pub_hday14, pub_hday15, pub_hday16)
 
 pub_hdays$Date <- ymd(pub_hdays$Date)
@@ -128,7 +133,7 @@ ped_data$HDay[ped_data$IsHDay == 1] <- "Holiday"
 This code uses official public holiday data from `data.gov.au` to check if dates fall on public holidays. The code ensures only public holidays which apply to Victoria are used.
 
 ## Code for Day Type
-```{r daytypecode}
+```{r daytypecode, results='hide'}
 ped_data$DayType <- ifelse(ped_data$Day == "Sunday", "Sunday",
                   ifelse(ped_data$Day == "Saturday", "Saturday",
                   ifelse(ped_data$Day == "Monday", "Monday",
@@ -139,7 +144,7 @@ ped_data$DayType[ped_data$IsHDay == 1] <- "Holiday"
 Compacts the `HDay` factor into 6 levels, rather than 8 levels, by coding Tuesday, Wednesday and Thursday as factor `"Midweek"`. This is because at most locations, these days have similar patterns.
 
 ## GLM model for imputing missings
-```{r glm_models}
+```{r glm_models, results='hide'}
 ped_list <- ped_data %>% filter(Date < "2017-01-01") %>%
             split(.$Sensor_ID)
 
@@ -165,7 +170,7 @@ To improve efficiency, only the coefficients of the model are retained, as well 
 We train the model only on the data from 2014 to 2016. The test data set is the data available from 2017.
 
 ### Test data fit
-```{r}
+```{r, results='hide'}
 test_ped <- ped_data %>% filter(Date > "2016-12-31") %>%
             split(.$Sensor_ID)
 ## required for model.matrix to allow NAs
@@ -188,44 +193,51 @@ test_fitted <- bind_rows(test_ped)
 
 ```
 Using the coefficients saved for each location, we can easily fit the test data.  
-With the function `model.matrix()`, `R` will generate a matrix, $X$, with the factor levels converted into dummy variables for use with the GLM. Then, we can obtain our estimates of $\text{Hourly_Counts}_ij$, $\widehat{\text{Hourly_Counts}_i} = \exp \left( X \hat{\beta_j} \right)$ where $\hat{\beta_j}$ is a column vector of the GLM estimated coefficients at the $j^{th}$ sensor location.
+With the function `model.matrix()`, `R` will generate a matrix, $X$, with the factor levels converted into dummy variables for use with the GLM. Then, we can obtain our estimates of $\text{Hourly_Counts}_{ij}$, $\widehat{\text{Hourly_Counts}_i} = \exp \left( X \hat{\beta_j} \right)$ where $\hat{\beta_j}$ is a column vector of the GLM estimated coefficients at the $j^{th}$ sensor location.
 
 # Goodness of Fit
 ### Visually
-```{r}
-ggplot(filter(test_fitted, Date > "2017-07-23")) + geom_line(aes(x = Date_Time, y = Hourly_Counts)) +
-                         geom_line(aes(x = Date_Time, y = Fitted), colour = "violetred2", alpha = 0.75) +
-                         facet_wrap(~ Sensor, scales = "free_y", ncol = 5) + theme_minimal() + 
+```{r, fig.align= 'center', fig.height=24, fig.retina=2, dev='png', dev.args=list(type="cairo"), dpi = 128}
+ggplot(filter(test_fitted, Date > "2017-07-23")) +
+  geom_line(aes(x = Date_Time, y = Hourly_Counts), size = 2) +
+  geom_line(aes(x = Date_Time, y = Fitted),
+            colour = "violetred2", alpha = 0.75, size = 2) +
+                         facet_wrap(~ Sensor, scales = "free_y", ncol = 4) + theme_minimal() + 
                     theme(axis.text.x = element_text(size = 3),
-                          strip.text = element_text(size = 5),
+                          strip.text = element_text(size = 32),
                           axis.text.y = element_text(size = 0)) +
                     xlab("Date") + ylab("Hourly Counts")
 ```
 Looking at plots of actuals (black) against fitted (red) of data from 24 July 2017 to 6 August 2017, we see that some sensors appear to be not operational. We see that there is a mix of very good fitting models and not so good ones. An example of of a reasonably good fitting model is the _Collins Place (North)_ sensor location:
-```{r}
+```{r, fig.align= 'center', fig.retina=4, dev='png', dev.args=list(type="cairo"), dpi = 128}
 ggplot(test_fitted %>%
          filter(Date > "2017-07-23",
                 Sensor == "Collins Place (North)")) +
       geom_line(aes(x = Date_Time, y = Hourly_Counts)) +
       geom_line(aes(x = Date_Time, y = Fitted), colour = 'violetred2', alpha = 0.7)
 ```
+
+
 ```{r}
 col_pl_test_mse <- test_fitted %>% filter(Date > "2017-07-23", Sensor == "Collins Place (North)") %>%
                mutate(residsq = (Fitted - Hourly_Counts)^2) %>% .$residsq %>% mean()
 col_pl_test_rmse <- sqrt(col_pl_test_mse)
 ```
 
-Using RMSE (root mean square error) as a goodness of fit measure, we find that the RMSE of the prediction represented in the plot above is `r col_pl_test_rmse`. 
+Using RMSE (root mean square error) as a goodness of fit measure, we find that the RMSE of the prediction represented in the plot above is `r round(col_pl_test_rmse, 4)`. 
 
-```{r}
+```{r, fig.align= 'center'}
 ggplot(filter(test_fitted, Sensor_ID == "Melbourne Central")) +
   geom_path(aes(x = Time, y = Hourly_Counts, group = Date), alpha = 0.1) +
   geom_path(aes(x = Time, y = Fitted, group = Date), colour = "violetred2", alpha = 0.1) +
   facet_wrap(~ DayType)
 ```
 
-```{r}
-ggplot(filter(ped_data, Sensor == "Collins Place (South)")) + geom_smooth(aes(x = as.integer(Time), y = Hourly_Counts, colour = Day))
+```{r, message = F, warning = F, fig.align= 'center', dev='png', dev.args=list(type="cairo"), dpi = 128}
+ggplot(filter(ped_data, Sensor == "Melbourne Central")) + 
+  geom_smooth(aes(x = as.integer(Time), y = Hourly_Counts, colour = Day), se = FALSE) +
+  xlab("Time of Day") + ylab("Hourly Count") + theme_minimal() +
+  ggtitle("Average pedestrian count at Melbourne Central by day of the week")
 ```
 
 ```{r}
