@@ -1,8 +1,10 @@
 ---
 title: "Imputation of Missing Values in the Melbourne CBD Pedestrian Dataset"
 output:
-  html_document: default
+  html_document:
+    theme: united
   html_notebook: default
+  pdf_document: default
 ---
 ```{r, include=FALSE}
 library(plyr)
@@ -204,11 +206,11 @@ test_fitted <- bind_rows(test_ped)
 
 ```
 Using the coefficients saved for each location, we can easily fit the test data.  
-With the function `model.matrix()`, `R` will generate a matrix, $X$, with the factor levels converted into dummy variables for use with the GLM. Then, we can obtain our estimates of $\text{Hourly_Counts}_{ij}$, $\widehat{\text{Hourly_Counts}_i} = \exp \left( X \hat{\beta_j} \right)$ where $\hat{\beta_j}$ is a column vector of the GLM estimated coefficients at the $j^{th}$ sensor location.
+With the function `model.matrix()`, `R` will generate a matrix, $X_j = \{ X_{1j}, X_{2j}, \dots , X_{Tj} \}$, with the factor levels converted into dummy variables for use with the GLM. Then, we can obtain our estimates of $\text{Hourly_Counts}_{j}$, $\widehat{\text{Hourly} \_ \text{Counts}}_{j} = \exp \left( X_j\hat{\beta_j} \right)$ where $\hat{\beta_j}$ is a column vector of the GLM estimated coefficients at the $j^{th}$ sensor location.
 
 # Goodness of Fit
 ### Visually
-```{r, fig.align= 'center', fig.height=24, fig.width=10, fig.retina=4, cache=TRUE, echo=FALSE}
+```{r, fig.align= 'center', fig.height=24, fig.width=10, fig.retina=1, cache=TRUE, echo=FALSE}
 ggplot(filter(test_fitted, Date > "2017-07-23")) +
   geom_line(aes(x = Date_Time, y = Hourly_Counts)) +
   geom_line(aes(x = Date_Time, y = Fitted),
@@ -220,7 +222,7 @@ ggplot(filter(test_fitted, Date > "2017-07-23")) +
                     xlab("Date") + ylab("Hourly Counts")
 ```
 Looking at plots of actuals (black) against fitted (red) of data from 24 July 2017 to 6 August 2017, we see that some sensors appear to be not operational. We see that there is a mix of very good fitting models and not so good ones. An example of of a reasonably good fitting model is the _Collins Place (North)_ sensor location:
-```{r, fig.align= 'center', fig.retina = 4, cache=TRUE}
+```{r, fig.align= 'center', fig.retina = 1, cache=TRUE}
 ggplot(test_fitted %>%
          filter(Date > "2017-07-23",
                 Sensor == "Collins Place (North)")) +
@@ -237,7 +239,7 @@ col_pl_test_rmse <- test_fitted %>% filter(Date > "2017-07-23", Sensor == "Colli
 
 Using RMSE (root mean square error) as a goodness of fit measure, we find that the RMSE of the prediction represented in the plot above is `r round(col_pl_test_rmse, 4)`. In comparison, the model predicted for the sensor located on _Grattan St-Swanston St (West)_ fits very poorly:
 
-```{r, echo=FALSE, fig.align='center', fig.retina=4, cache=TRUE}
+```{r, echo=FALSE, fig.align='center', fig.retina=1, cache=TRUE}
 ggplot(test_fitted %>%
          filter(Date > "2017-07-23",
                 Sensor == "Grattan St-Swanston St (West)")) +
@@ -261,7 +263,7 @@ gratt_test_rmse_aug <- test_fitted %>% filter(Date > "2017-07-31", Sensor == "Gr
 Here, the poor fit results in a RMSE of `r round(gratt_test_rmse, 4)` for the period between Jul 24 to Aug 6. It appears as though the additive effect of `Month` is exaggerated, where we see that predictions in July are significantly underestimated, compared to August predictions which have adequate fit.
 If we compare the RMSE between July predictions and August predictions, we find that the RMSE of the predictions of Aug 1 to Aug 6 is much lower than that of the predictions for Jul 24 to Jul 31 (`r round(gratt_test_rmse_aug, 4)` compared to `r round(gratt_test_rmse_july, 4)`)
 
-```{r, fig.align= 'center', fig.retina=3, echo=FALSE, cache=TRUE}
+```{r, fig.align= 'center', fig.retina=1, echo=FALSE, cache=TRUE, warning=F}
 ggplot(filter(test_fitted, Sensor_ID == "Grattan St-Swanston St (West)")) +
   geom_path(aes(x = Time, y = Hourly_Counts, group = Date), alpha = 0.1) +
   geom_path(aes(x = Time, y = Fitted, group = Date), colour = "violetred2", alpha = 0.1) +
@@ -271,7 +273,7 @@ ggplot(filter(test_fitted, Sensor_ID == "Grattan St-Swanston St (West)")) +
 
 Looking at the counts for each day, we see that the variance during weekdays is quite large. This would suggest that the day of the week and time of the day do not explain a lot of the variance in the data.
 
-```{r, fig.align= 'center', fig.retina=3, echo=FALSE, cache=TRUE}
+```{r, fig.align= 'center', fig.retina=1, echo=FALSE, cache=TRUE, warning = F}
 ggplot(filter(ped_data, Sensor_ID == "Grattan St-Swanston St (West)")) +
   geom_path(aes(x = Time, y = Hourly_Counts, group = Date, colour = Month), alpha = 0.1) +
   facet_wrap(~ DayType) +
@@ -281,9 +283,6 @@ ggplot(filter(ped_data, Sensor_ID == "Grattan St-Swanston St (West)")) + geom_li
       theme_minimal()
 ```
 
-However, we see that the variance within a month is quite low comparatively. It is worth noting that the data available at this location is very poor.
-
-```{r}
-
-```
+However, we see that the variance within a month is quite low comparatively. It is worth noting that the data available at this location is very poor.  
+Plotting all available observations, we see we only have data starting from `r head(na.omit(ped_data[ped_data$Sensor_ID == "Grattan St-Swanston St (West)", ])$Date, 1)`.
 
