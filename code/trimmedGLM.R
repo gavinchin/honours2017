@@ -34,15 +34,9 @@ stripGlmLR = function(cm) {
 
 cl <- makeCluster(2)
 registerDoSNOW(cl)
-pb <- txtProgressBar(max=43, style=3)
-progress <- function(n) setTxtProgressBar(pb, n)
-opts <- list(progress=progress)
 
-ped_models <- foreach(i = 1:43,  .options.snow=opts) %dopar% {
+ped_models <- foreach(i = 1:43) %dopar% {
   model <- glm(Hourly_Counts ~ Month + DayType*Time, data = ped_list[[i]], family = quasipoisson())
   model <- stripGlmLR(model)
   return(model)
 }
-close(pb)
-
-predictions <- predict.glm(ped_models[[1]], newdata = test_ped[[1]], type = "response")      

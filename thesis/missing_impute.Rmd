@@ -10,10 +10,9 @@ output:
 library(plyr)
 library(tidyverse)
 library(lubridate)
-library(magrittr)
-library(viridis)
-library(gridExtra)
 library(pander)
+library(gridExtra)
+library(fortify)
 set.seed(12345)
 ```
 
@@ -162,26 +161,72 @@ ggplot(filter(ped_data, Sensor == "Melbourne Central")) +
 ped_list <- ped_data %>% filter(Date < "2017-01-01") %>%
             split(.$Sensor_ID)
 
-ped_coeffs <- list()
-ped_model_fitted <- list()
-ped_model_summary <- list()
-p <- progress_estimated(43)
-options(na.action = 'na.omit')
-for (i in 1:43) {
-  p$tick()$print()
-  train <- ped_list[[i]]
-  ped_model_i <- glm(Hourly_Counts ~ Month + DayType*Time,
-                     family = quasipoisson(), data = train)
-  ped_coeffs[[i]] <- ped_model_i$coefficients
-  ped_model_summary[[i]] <- summary(ped_model_i)
+# ped_coeffs <- list()
+# ped_model_fitted <- list()
+# ped_model_summary <- list()
+# p <- progress_estimated(43)
+# options(na.action = 'na.omit')
+# for (i in 1:43) {
+#   p$tick()$print()
+#   train <- ped_list[[i]]
+#   ped_model_i <- glm(Hourly_Counts ~ Month + DayType*Time,
+#                      family = quasipoisson(), data = train)
+#   ped_coeffs[[i]] <- ped_model_i$coefficients
+#   ped_model_summary[[i]] <- summary(ped_model_i)
+# }
+# rm(ped_model_i)
+```
+
+```{r, cache = T}
+## Alternative code for GLM
+library(foreach)
+library(doSNOW)
+### code from:
+## http://www.win-vector.com/blog/2014/05/trimming-the-fat-from-glm-models-in-r/
+stripGlmLR = function(cm) {
+  cm$y = c()
+  cm$model = c()
+  
+  cm$residuals = c()
+  cm$fitted.values = c()
+  cm$effects = c()
+  cm$qr$qr = c()  
+  cm$linear.predictors = c()
+  cm$weights = c()
+  cm$prior.weights = c()
+  cm$data = c()
+  
+  
+  cm$family$variance = c()
+  cm$family$dev.resids = c()
+  cm$family$aic = c()
+  cm$family$validmu = c()
+  cm$family$simulate = c()
+  attr(cm$terms,".Environment") = c()
+  attr(cm$formula,".Environment") = c()
+  
+  cm
 }
-rm(ped_model_i)
+#######################################
+
+
+cl <- makeCluster(2)
+registerDoSNOW(cl)
+ped_models <- foreach(i = 1:43) %dopar% {
+  model <- glm(Hourly_Counts ~ Month + DayType*Time, data = ped_list[[i]], family = quasipoisson())
+  model <- stripGlmLR(model)
+  return(model)
+}
+
+ped_models[[31]]$xlevels <- ped_models[[1]]$xlevels
 
 ```
+
 The code above fits a GLM model for each sensor location. This model uses a quasi-poisson distribution to allow of overdispersion. Using a standard poisson distribution would give the restriction of mean = variance.  
 The model is specified as `Hourly_Counts ~ Month + DayType * Time`, where `Month` is given an additive effect, and `DayType * Time` gives an interaction term between `DayType` and `Time`, as well as any other indirect additive effects.
 To improve efficiency, only the coefficients of the model are retained, as well as model summarries for model evaluation.  
 We train the model only on the data from 2014 to 2016. The test data set is the data available from 2017.
+
 
 ### Test data fit
 ```{r, results='hide', cache=TRUE}
@@ -191,17 +236,22 @@ test_ped <- ped_data %>% filter(Date > "2016-12-31") %>%
 options(na.action = 'na.pass')
 
 for (i in 1:43) {
-  test_df <- model.matrix(Hourly_Counts ~ Month + DayType*Time,
-                          data = test_ped[[i]])
-  test_coeff <- ped_coeffs[[i]]
-  if (length(test_coeff) < ncol(test_df)) {
-    missing_cols <- setdiff(colnames(test_df), rownames(as.data.frame(test_coeff)))
-    test_df <- test_df[, !(colnames(test_df) %in% missing_cols)]
-  }
-  
-  test_preds <- exp(test_df %*% test_coeff)
-  test_ped[[i]]$Fitted <- test_preds
+  test_ped[[i]]$Fitted <- predict.glm(ped_models[[i]], newdata = test_ped[[i]], type = "response")
 }
+
+# 
+# for (i in 1:43) {
+#   test_df <- model.matrix(Hourly_Counts ~ Month + DayType*Time,
+#                           data = test_ped[[i]])
+#   test_coeff <- ped_coeffs[[i]]
+#   if (length(test_coeff) < ncol(test_df)) {
+#     missing_cols <- setdiff(colnames(test_df), rownames(as.data.frame(test_coeff)))
+#     test_df <- test_df[, !(colnames(test_df) %in% missing_cols)]
+#   }
+#   
+#   test_preds <- exp(test_df %*% test_coeff)
+#   test_ped[[i]]$Fitted <- test_preds
+# }
 
 test_fitted <- bind_rows(test_ped)
 
@@ -211,7 +261,7 @@ With the function `model.matrix()`, `R` will generate a matrix, $X_j = \{ X_{1j}
 
 # Goodness of Fit
 ### Visually
-```{r, fig.align= 'center', fig.height=24, fig.width=10, fig.retina=1, cache=TRUE, echo=FALSE}
+```{r, fig.align= 'center', fig.height=24, fig.width=10, fig.retina=2, cache=TRUE, echo=FALSE}
 ggplot(filter(test_fitted, Date > "2017-07-23")) +
   geom_line(aes(x = Date_Time, y = Hourly_Counts)) +
   geom_line(aes(x = Date_Time, y = Fitted),
@@ -271,8 +321,8 @@ If we compare the RMSE between July predictions and August predictions, we find 
 
 ```{r, fig.align= 'center', fig.retina=1, echo=FALSE, cache=TRUE, warning=F}
 ggplot(filter(test_fitted, Sensor_ID == "Grattan St-Swanston St (West)")) +
-  geom_path(aes(x = Time, y = Hourly_Counts, group = Date), alpha = 0.1) +
-  geom_path(aes(x = Time, y = Fitted, group = Date), colour = "violetred2", alpha = 0.1) +
+  geom_path(aes(x = as.integer(Time), y = Hourly_Counts, group = Date), alpha = 0.1) +
+  geom_path(aes(x = as.integer(Time), y = Fitted, group = Date), colour = "violetred2", alpha = 0.1) +
   facet_wrap(~ DayType) +
       theme_minimal()
 ```
@@ -298,25 +348,218 @@ Computing the RMSE for all of the test set (2017 data) for each sensor:
 ```{r}
 test_df <- test_fitted %>% mutate(residsq = (Fitted - Hourly_Counts)^2) %>%
             split(.$Sensor_ID)
-test_df_rmse <- data.frame(Sensor_ID = rep(0,43), RMSE = rep(0, 43))
+test_df_rmse <- data.frame(Sensor_ID = rep(0,43), RMSE = rep(0, 43), StdRMSE = rep(0, 43))
   for (i in 1:43) {
       test_df_rmse$Sensor_ID[i] <- names(test_df)[i]
       test_df_rmse$RMSE[i] <- mean(test_df[[i]]$residsq) %>% sqrt()
+      test_df_rmse$StdRMSE[i] <- test_df_rmse$RMSE[i] / mean(test_df[[i]]$Hourly_Counts)
+
   }
 
 test_df_plot <- test_fitted %>% filter(Date > "2017-07-23") %>%
             mutate(residsq = (Fitted - Hourly_Counts)^2) %>%
             split(.$Sensor_ID)
-test_df_rmse_plot <- data.frame(Sensor_ID = rep(0,43), RMSE = rep(0, 43))
+test_df_rmse_plot <- data.frame(Sensor_ID = rep(0,43), RMSE = rep(0, 43), StdRMSE = rep(0, 43))
   for (i in 1:43) {
       test_df_rmse_plot$Sensor_ID[i] <- names(test_df_plot)[i]
       test_df_rmse_plot$RMSE[i] <- mean(test_df_plot[[i]]$residsq) %>% sqrt()
+      test_df_rmse_plot$StdRMSE[i] <- test_df_rmse_plot$RMSE[i] / mean(test_df_plot[[i]]$Hourly_Counts)
   }
-pander(arrange(test_df_rmse, by= RMSE))
+pander(arrange(test_df_rmse, by= StdRMSE))
+```
+
+Here, the `StdRMSE` is the RMSE standardised by the mean.
+
+```{r}
+library(ggmap)
+  ped_loc <- read_csv("../data/Pedestrian_sensor_locations.csv")
 ```
 
 
+Looking at some problematic sensor locations:
+```{r}
+pander(test_df_rmse[test_df_rmse$StdRMSE > 0.65, ] %>% arrange(by = StdRMSE))
+test_df_rmse[test_df_rmse$StdRMSE > 0.65, ] %>% .$Sensor_ID -> bad_sensors
+```
 
 
+```{r, warning=F}
+p1 <- ggplot(test_ped$`Birrarung Marr`) + geom_path(aes(x = Time, y = Hourly_Counts, group = Date), alpha = 0.05) +
+                                  geom_path(aes(x = Time, y = Fitted, group = Date), alpha = 0.05,
+                                            colour = "violetred2") + ggtitle("Birrarung Marr")
+p2 <- ggplot(test_ped$`Birrarung Marr`) + geom_line(aes(x = Date_Time, y = Hourly_Counts), alpha = 0.5) +
+                                  geom_line(aes(x = Date_Time, y = Fitted), alpha = 0.5, colour = "violetred2")
+
+grid.arrange(p1, p2, nrow = 1)
+```
 
 
+```{r}
+p1 <- ggplot(test_ped$`Flagstaff Station`) + geom_path(aes(x = Time, y = Hourly_Counts, group = Date), alpha = 0.05) +
+                                  geom_path(aes(x = Time, y = Fitted, group = Date), alpha = 0.05,
+                                            colour = "violetred2") + ggtitle("Flagstaff Station")
+p2 <- ggplot(test_ped$`Flagstaff Station`) + geom_line(aes(x = Date_Time, y = Hourly_Counts), alpha = 0.5) +
+                                  geom_line(aes(x = Date_Time, y = Fitted), alpha = 0.5, colour = "violetred2")
+grid.arrange(p1, p2, nrow = 1)
+
+```
+
+```{r}
+p1 <- ggplot(test_ped$`Flinders St-Swanston St (West)`) + geom_path(aes(x = Time, y = Hourly_Counts, group = Date), alpha = 0.05) +
+                                  geom_path(aes(x = Time, y = Fitted, group = Date), alpha = 0.05,
+                                            colour = "violetred2") + ggtitle("Flinders St-Swanston St (West)")
+p2 <- ggplot(test_ped$`Flinders St-Swanston St (West)`) + geom_line(aes(x = Date_Time, y = Hourly_Counts), alpha = 0.5) +
+                                  geom_line(aes(x = Date_Time, y = Fitted), alpha = 0.5, colour = "violetred2")
+grid.arrange(p1, p2, nrow = 1)
+
+```
+
+
+```{r}
+p1 <- ggplot(test_ped$`New Quay`) + geom_path(aes(x = Time, y = Hourly_Counts, group = Date), alpha = 0.05) +
+                                  geom_path(aes(x = Time, y = Fitted, group = Date), alpha = 0.05,
+                                  colour = "violetred2") + ggtitle("New Quay")
+p2 <- ggplot(test_ped$`New Quay`) + geom_line(aes(x = Date_Time, y = Hourly_Counts), alpha = 0.5) +
+                                  geom_line(aes(x = Date_Time, y = Fitted), alpha = 0.5, colour = "violetred2")
+grid.arrange(p1, p2, nrow = 1)
+
+```
+
+```{r}
+p1 <- ggplot(test_ped$`Princes Bridge`) + geom_path(aes(x = Time, y = Hourly_Counts, group = Date), alpha = 0.05) +
+                                  geom_path(aes(x = Time, y = Fitted, group = Date), alpha = 0.05,
+                                  colour = "violetred2") + ggtitle("Princes Bridge")
+p2 <- ggplot(test_ped$`Princes Bridge`) + geom_line(aes(x = Date_Time, y = Hourly_Counts), alpha = 0.5) +
+                                  geom_line(aes(x = Date_Time, y = Fitted), alpha = 0.5, colour = "violetred2")
+grid.arrange(p1, p2, nrow = 1)
+```
+
+```{r}
+p1 <- ggplot(test_ped$`Southbank`) + geom_path(aes(x = Time, y = Hourly_Counts, group = Date), alpha = 0.05) +
+                                  geom_path(aes(x = Time, y = Fitted, group = Date), alpha = 0.05,
+                                  colour = "violetred2") + ggtitle("Southbank")
+p2 <- ggplot(test_ped$`Southbank`) + geom_line(aes(x = Date_Time, y = Hourly_Counts), alpha = 0.5) +
+                                  geom_line(aes(x = Date_Time, y = Fitted), alpha = 0.5, colour = "violetred2")
+grid.arrange(p1, p2, nrow = 1)
+```
+
+
+### Standardise Counts 
+
+$$HourlyCounts_{i,j} \sim N(0,1)$$
+
+```{r}
+for (i in 1:43) {
+  ped_list[[i]]$scaled_count <- scale(ped_list[[i]]$Hourly_Counts)
+}
+ped_df <- bind_rows(ped_list)
+ped_df %>% mutate(Timep = as.integer(Time)) -> ped_df
+```
+
+```{r}
+ggplot(ped_df[ped_df$Date > "2015-01-01", ]) + 
+  geom_path(aes(x = Timep, y = scaled_count, colour = Sensor_ID, group = Date), alpha = 0.01) +
+      theme(legend.position = 'none') + xlab("Time") + ylab("Standardised Counts")
+```
+
+
+```{r}
+ggplot(ped_df[ped_df$Sensor_ID == "Flinders St-Swanston St (West)" | 
+              ped_df$Sensor_ID == "Flinders St-Elizabeth St (East)" |
+              ped_df$Sensor_ID == "Flinders St Station Underpass" , ]) +
+      geom_smooth(aes(x = Timep, y = scaled_count, colour = Sensor_ID))
+
+ggplot(ped_df[ped_df$Sensor_ID == "Flinders St-Swanston St (West)" | 
+              ped_df$Sensor_ID == "Flinders St-Elizabeth St (East)" |
+              ped_df$Sensor_ID == "Flinders St Station Underpass" , ]) +
+      geom_path(aes(x = Timep, y = scaled_count, group = Date, colour = Sensor_ID),
+                alpha = 0.05) + facet_wrap(~ DayType) + theme(legend.position = 'none')
+```
+
+```{r}
+ped_df[ped_df$Sensor_ID == "Flinders St-Swanston St (West)", ]$scaled_count -> swan
+ped_df[ped_df$Sensor_ID == "Flinders St-Elizabeth St (East)", ]$scaled_count -> liz
+ped_df[ped_df$Sensor_ID == "Flinders St Station Underpass", ]$scaled_count -> underpass
+
+flin_swan_df <- data.frame(swan = swan, liz = liz, underpass = underpass,
+                           date = ped_df[ped_df$Sensor_ID == "Webb Bridge", ]$Date,
+                           time = as.integer(ped_df[ped_df$Sensor_ID == "Webb Bridge", ]$Time),
+                           timefact = ped_df[ped_df$Sensor_ID == "Webb Bridge", ]$Time,
+                           month = ped_df[ped_df$Sensor_ID == "Webb Bridge", ]$Month,
+                           daytype = ped_df[ped_df$Sensor_ID == "Webb Bridge", ]$DayType,
+                           dtm = ped_df[ped_df$Sensor_ID == "Webb Bridge", ]$Date_Time,
+                           hday = ped_df[ped_df$Sensor_ID == "Webb Bridge", ]$IsHDay)
+
+flin_swan <- lm(swan ~ liz + underpass, data = flin_swan_df) 
+summary(flin_swan)
+flin_swan_df$swan_fit <- predict.lm(flin_swan, newdata = flin_swan_df)
+flin_swan_df$resid <- flin_swan_df$swan_fit - flin_swan_df$swan
+plot(flin_swan)
+ggplot(flin_swan_df) + 
+  geom_path(aes(x = time, y = swan, group = date), alpha = 0.05) + 
+  geom_path(aes(x = time, y = liz, group = date), alpha = 0.02, colour = 'limegreen') + 
+  geom_path(aes(x = time, y = swan_fit, group = date), alpha = 0.02, colour = 'red')
+
+
+```
+
+```{r}
+flin_swan_df %>% mutate(midday = ifelse(time > 10 & time < 17, 1, 0)) -> flin_swan_df
+
+flin_swan <- lm(swan ~ daytype*liz*timefact, data = flin_swan_df) 
+summary(flin_swan)
+flin_swan_df$swan_fit <- predict.lm(flin_swan, newdata = flin_swan_df)
+flin_swan_df$resid <- flin_swan_df$swan_fit - flin_swan_df$swan
+plot(flin_swan)
+ggplot(flin_swan_df) + 
+  geom_path(aes(x = time, y = swan, group = date), alpha = 0.05) + 
+  geom_path(aes(x = time, y = liz, group = date), alpha = 0.02, colour = 'limegreen') + 
+  geom_path(aes(x = time, y = swan_fit, group = date), alpha = 0.02, colour = 'red')
+
+```
+
+```{r}
+flin_swan_2 <- lm(swan ~ daytype*timefact*liz + daytype*timefact*underpass, data = flin_swan_df) 
+summary(flin_swan_2)
+flin_swan_df$swan_fit <- predict.lm(flin_swan_2, newdata = flin_swan_df)
+flin_swan_df$resid <- flin_swan_df$swan_fit - flin_swan_df$swan
+plot(flin_swan_2)
+
+ggplot(flin_swan_df) + 
+  geom_path(aes(x = time, y = swan, group = date), alpha = 0.05) + 
+  geom_path(aes(x = time, y = liz, group = date), alpha = 0.02, colour = 'limegreen') + 
+  geom_path(aes(x = time, y = swan_fit, group = date), alpha = 0.02, colour = 'red')
+
+```
+
+Issues with potentially `NA` having `Hourly_Counts = 0`:  
+
+```{r}
+ggplot(flin_swan_df) + geom_line(aes(x = dtm, y = swan))
+ggplot(ped_data %>% filter(Sensor_ID == "Flinders St-Swanston St (West)")) + geom_line(aes(x = Date_Time, y = Hourly_Counts))
+```
+
+Need to filter out pre-2015 data from training set:
+
+```{r}
+flin_swan_df_train <- flin_swan_df %>% filter(date > "2014-12-31")
+
+flin_swan_2 <- lm(swan ~ timefact*liz + timefact*underpass, data = flin_swan_df_train) 
+summary(flin_swan_2)
+flin_swan_df$swan_fit <- predict.lm(flin_swan_2, newdata = flin_swan_df)
+flin_swan_df$resid <- flin_swan_df$swan_fit - flin_swan_df$swan
+plot(flin_swan_2)
+
+ggplot(flin_swan_df) + 
+  geom_path(aes(x = time, y = swan, group = date), alpha = 0.05) + 
+  geom_path(aes(x = time, y = liz, group = date), alpha = 0.02, colour = 'limegreen') + 
+  geom_path(aes(x = time, y = swan_fit, group = date), alpha = 0.02, colour = 'red')
+
+```
+Also removed `DayType` due to high leverage observations.
+
+```{r}
+flin_swan_df[8763:8764, ]
+```
+
+High leverage points here are the New Year's Day celebrations.
