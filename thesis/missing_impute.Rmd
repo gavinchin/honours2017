@@ -12,7 +12,7 @@ library(tidyverse)
 library(lubridate)
 library(pander)
 library(gridExtra)
-library(fortify)
+library(ggfortify)
 set.seed(12345)
 ```
 
@@ -219,6 +219,10 @@ ped_models <- foreach(i = 1:43) %dopar% {
 }
 
 ped_models[[31]]$xlevels <- ped_models[[1]]$xlevels
+
+for (i in 1:43) {
+  ped_list[[i]]$glm_fitted <- predict.glm(ped_models[[i]], ped_list[[i]], type = "response")
+}
 
 ```
 
@@ -444,7 +448,7 @@ grid.arrange(p1, p2, nrow = 1)
 ```
 
 
-### Standardise Counts 
+### Standardising Counts 
 
 $$HourlyCounts_{i,j} \sim N(0,1)$$
 
@@ -462,6 +466,7 @@ ggplot(ped_df[ped_df$Date > "2015-01-01", ]) +
       theme(legend.position = 'none') + xlab("Time") + ylab("Standardised Counts")
 ```
 
+#### Flinders St. - Swanston St. (West)
 
 ```{r}
 ggplot(ped_df[ped_df$Sensor_ID == "Flinders St-Swanston St (West)" | 
@@ -494,7 +499,7 @@ flin_swan <- lm(swan ~ liz + underpass, data = flin_swan_df)
 summary(flin_swan)
 flin_swan_df$swan_fit <- predict.lm(flin_swan, newdata = flin_swan_df)
 flin_swan_df$resid <- flin_swan_df$swan_fit - flin_swan_df$swan
-plot(flin_swan)
+autoplot(flin_swan)
 ggplot(flin_swan_df) + 
   geom_path(aes(x = time, y = swan, group = date), alpha = 0.05) + 
   geom_path(aes(x = time, y = liz, group = date), alpha = 0.02, colour = 'limegreen') + 
@@ -510,7 +515,7 @@ flin_swan <- lm(swan ~ daytype*liz*timefact, data = flin_swan_df)
 summary(flin_swan)
 flin_swan_df$swan_fit <- predict.lm(flin_swan, newdata = flin_swan_df)
 flin_swan_df$resid <- flin_swan_df$swan_fit - flin_swan_df$swan
-plot(flin_swan)
+autoplot(flin_swan)
 ggplot(flin_swan_df) + 
   geom_path(aes(x = time, y = swan, group = date), alpha = 0.05) + 
   geom_path(aes(x = time, y = liz, group = date), alpha = 0.02, colour = 'limegreen') + 
@@ -523,8 +528,7 @@ flin_swan_2 <- lm(swan ~ daytype*timefact*liz + daytype*timefact*underpass, data
 summary(flin_swan_2)
 flin_swan_df$swan_fit <- predict.lm(flin_swan_2, newdata = flin_swan_df)
 flin_swan_df$resid <- flin_swan_df$swan_fit - flin_swan_df$swan
-plot(flin_swan_2)
-
+autoplot(flin_swan_2)
 ggplot(flin_swan_df) + 
   geom_path(aes(x = time, y = swan, group = date), alpha = 0.05) + 
   geom_path(aes(x = time, y = liz, group = date), alpha = 0.02, colour = 'limegreen') + 
@@ -544,11 +548,11 @@ Need to filter out pre-2015 data from training set:
 ```{r}
 flin_swan_df_train <- flin_swan_df %>% filter(date > "2014-12-31")
 
-flin_swan_2 <- lm(swan ~ timefact*liz + timefact*underpass, data = flin_swan_df_train) 
+flin_swan_2 <- lm(swan ~ timefact + timefact:liz + timefact:underpass, data = flin_swan_df_train) 
 summary(flin_swan_2)
 flin_swan_df$swan_fit <- predict.lm(flin_swan_2, newdata = flin_swan_df)
 flin_swan_df$resid <- flin_swan_df$swan_fit - flin_swan_df$swan
-plot(flin_swan_2)
+autoplot(flin_swan_2)
 
 ggplot(flin_swan_df) + 
   geom_path(aes(x = time, y = swan, group = date), alpha = 0.05) + 
@@ -559,7 +563,92 @@ ggplot(flin_swan_df) +
 Also removed `DayType` due to high leverage observations.
 
 ```{r}
-flin_swan_df[8763:8764, ]
+flin_swan_df[c(8763:8764, 1248), ]
 ```
 
-High leverage points here are the New Year's Day celebrations.
+High leverage points here are the New Year's Day celebrations.  
+Comparing this fit to that Quasipoisson GLM:
+```{r}
+flin_swan_var <- ped_list$`Flinders St-Swanston St (West)` %>%
+  .$Hourly_Counts %>% var(na.rm = TRUE)
+flin_swan_mu <- ped_list$`Flinders St-Swanston St (West)` %>%
+  .$Hourly_Counts %>% mean(na.rm = TRUE)
+flin_swan_df$glmfits <- ped_list$`Flinders St-Swanston St (West)` %>% .$glm_fitted
+flin_swan_df$fits <- flin_swan_df$swan_fit*sqrt(flin_swan_var) + flin_swan_mu
+flin_swan_df$swan_unscaled <- flin_swan_df$swan*sqrt(flin_swan_var) + flin_swan_mu
+
+ggplot(flin_swan_df) + 
+  geom_path(aes(x = time, y = swan_unscaled, group = date), alpha = 0.05) + 
+  geom_path(aes(x = time, y = glmfits, group = date), alpha = 0.02, colour = 'blue') + 
+  geom_path(aes(x = time, y = fits, group = date), alpha = 0.02, colour = 'red')
+
+```
+
+
+#### Southbank
+```{r}
+ped_df[ped_df$Sensor_ID == "Southbank", ]$scaled_count -> sbank
+ped_df[ped_df$Sensor_ID == "Waterfront City", ]$scaled_count -> wfront
+ped_df[ped_df$Sensor_ID == "Webb Bridge", ]$scaled_count -> wbridge
+ped_df[ped_df$Sensor_ID == "Vic Arts Centre", ]$scaled_count -> vicarts
+
+sbank_df <- data.frame(sbank_y = sbank, wfront, wbridge, vicarts,
+                       date = ped_df[ped_df$Sensor_ID == "Webb Bridge", ]$Date,
+                       time = as.integer(ped_df[ped_df$Sensor_ID == "Webb Bridge", ]$Time),
+                       timefact = ped_df[ped_df$Sensor_ID == "Webb Bridge", ]$Time,
+                       month = ped_df[ped_df$Sensor_ID == "Webb Bridge", ]$Month,
+                       daytype = ped_df[ped_df$Sensor_ID == "Webb Bridge", ]$DayType,
+                       dtm = ped_df[ped_df$Sensor_ID == "Webb Bridge", ]$Date_Time,
+                       hday = ped_df[ped_df$Sensor_ID == "Webb Bridge", ]$IsHDay)
+
+qplot(x = dtm, y = sbank, data = sbank_df)
+```
+
+```{r}
+ggplot(sbank_df) + geom_point(aes(x = sbank, y = wbridge))
+
+sbank_fit <- lm(sbank_y ~ wfront + wbridge + vicarts, data = sbank_df)
+summary(sbank_fit)
+autoplot(sbank_fit)
+sbank_df$sbank_fit <- predict(sbank_fit, sbank_df)
+ggplot(sbank_df) + geom_path(aes(x = time, y = sbank_y, group = date), alpha = 0.06) + 
+                   geom_path(aes(x = time, y = sbank_fit, group = date), alpha = 0.02, colour = 'red')
+```
+
+```{r}
+sbank_fit <- lm(sbank ~ timefact:wbridge + timefact:vicarts + timefact:wfront, data = sbank_df)
+summary(sbank_fit)
+autoplot(sbank_fit)
+sbank_df$sbank_fit <- predict(sbank_fit, sbank_df)
+ggplot(sbank_df) + geom_path(aes(x = time, y = sbank_y, group = date), alpha = 0.06) + 
+                   geom_path(aes(x = time, y = sbank_fit, group = date), alpha = 0.02, colour = 'red')
+```
+
+```{r}
+sbank_df[26302:26304, ]
+```
+
+We also have a huge potential outlier:
+```{r}
+sbank_df %>% arrange(desc(fits)) %>% head(5) %>%
+    select(dtm, daytype, sbank_y, wfront, vicarts,
+            wbridge, sbank_fit, fits, glmfits) %>%
+    pander()
+```
+
+Comparing to the Quasipoisson GLM:
+```{r}
+sbank_var <- ped_list$`Southbank` %>%
+  .$Hourly_Counts %>% var(na.rm = TRUE)
+sbank_mu <- ped_list$`Southbank` %>%
+  .$Hourly_Counts %>% mean(na.rm = TRUE)
+sbank_df$glmfits <- ped_list$`Southbank` %>% .$glm_fitted
+sbank_df$fits <- sbank_df$sbank_fit*sqrt(sbank_var) + sbank_mu
+sbank_df$sbank_unscaled <- sbank_df$sbank_y * sqrt(sbank_var) + sbank_mu
+
+ggplot(sbank_df[sbank_df$date != "2014-04-13", ]) + 
+  geom_path(aes(x = time, y = sbank_unscaled, group = date), alpha = 0.15) + 
+  geom_path(aes(x = time, y = glmfits, group = date), alpha = 0.007, colour = 'blue') +
+  geom_path(aes(x = time, y = fits, group = date), alpha = 0.0088, colour = 'red')
+```
+
