@@ -123,7 +123,11 @@ run_lengths <- foreach(i = unique(ped_data$Sensor)) %dopar%
   }
 
 models <- list()
+fitted_data <- list()
+p <- progress_estimated(length(unique(ped_data$Sensor)))
 for (i in unique(ped_data$Sensor)){
+  p$tick()$print()
+  options(na.action = na.omit)
   ## check percentage of missings
     dfa[is.na(dfa[, i]), i] <- 0
     na_length_check <- rle(as.numeric(unlist(dfa[,i])))
@@ -140,21 +144,34 @@ for (i in unique(ped_data$Sensor)){
   
   if(na_prop < threshold)
     {
+      scaled_model = FALSE
     model <- glm(sensor_df ~  DayType*Time, family = 'quasipoisson', data = dfa)
     }
   else{
+        scaled_model = TRUE
         sensor_loc <- loc[i, ]
         sensor_dists <-  dplyr::mutate(filter(loc, ids != i), lons_dist = (sensor_loc$lons - lons),
                                lats_dist = (sensor_loc$lats - lats),
                                dist = sqrt(lons_dist^2 + lats_dist^2))
         closest_sensor <- head(arrange(sensor_dists, dist),2)
         close_sensor_counts <- unlist(dfa[, as.character(closest_sensor[1, ]$ids)])
+        csc_mu <- mean(close_sensor_counts)
+        csc_sd <- sqrt(var(close_sensor_counts))
+        csc_sc <- scale(close_sensor_counts)
         close_sensor_counts_2 <- unlist(dfa[, as.character(closest_sensor[2, ]$ids)])
-        model <- lm(sensor_df ~ dfa$Time*close_sensor_counts + dfa$Time*close_sensor_counts_2)
+        csc_mu2 <- mean(close_sensor_counts_2)
+        csc_sd2 <- sqrt(var(close_sensor_counts_2))
+        csc_sc2 <- scale(close_sensor_counts_2)
+        model <- lm(sensor_df ~ dfa$Time*csc_sc + dfa$Time*csc_sc2)
     
       }
   models[[i]] <- model
+  options(na.action = na.pass)
+  fitted_data[[i]] <- predict(model, newdata = dfa, type = "response")
+  options(na.action = na.omit)
   }
+
+map(fitted_data, is.na) %>% map(sum) %>% unlist
 
 model_summaries <- map(models, summary)
 # na_prop <- numeric()
