@@ -65,6 +65,17 @@ ids[ids == "QV Market-Elizabeth St (West)"] <- "QV Market-Elizabeth (West)"
 ids[ids == "Melbourne Convention Exhibition Centre"] <- "Convention/Exhibition Centre"
 ids[ids == "St Kilda Rd-Alexandra Gardens"] <- "St. Kilda-Alexandra Gardens"
 
+# ped_name_fix <- function(x) 
+#   {
+#   x <- as.character(x)
+#   x <- gsub("The A", "Vic A", x)
+#   x <- gsub("Street", "St", x)
+#   x <- gsub("Lane", "La", x)
+#   x <- gsub("Convention/", "Melbourne Convention" , x)
+#   x <- gsub(" Rd-", "-", x)
+#   return(x)
+#   }
+
 loc <- data.frame(lons, lats, ids)
 rownames(loc) <- ids
 
@@ -99,9 +110,15 @@ stripGlmLR = function(cm) {
 }
 
 #######################################
+ori <- dfa
+#######################################
+dfa <- ori
+dfa <- dfa %>% filter(Date_Time < "2017-01-01")
+
+#######################################
 
 n_obs <- nrow(dfa)
-threshold <- 0.05
+threshold <- 0.1
 threshold_miss_hrs <- 50
 max_miss_hrs <- 100
 geo_match = TRUE
@@ -110,75 +127,105 @@ geo_match = TRUE
 
 ##################################
 # parallel computation setup #
-
-cl <- makeCluster(2)
-
-registerDoSNOW(cl)
-options(na.action = na.omit)
+# 
+# cl <- makeCluster(2)
+# 
+# registerDoSNOW(cl)
+# options(na.action = na.omit)
 
 ##------------------------------##
-run_lengths <- foreach(i = unique(ped_data$Sensor)) %dopar% 
-  {
-    return(rle(dfa[, i]))
-  }
+# run_lengths <- foreach(i = unique(ped_data$Sensor)) %dopar%
+#   {
+#     return(rle(dfa[, i]))
+#   }
 
-models <- list()
-fitted_data <- list()
-p <- progress_estimated(length(unique(ped_data$Sensor)))
-for (i in unique(ped_data$Sensor)){
-  p$tick()$print()
-  options(na.action = na.omit)
-  ## check percentage of missings
+### classify suspect 0 values as NA
+
+  for (i in unique(ped_data$Sensor)){
     dfa[is.na(dfa[, i]), i] <- 0
     na_length_check <- rle(as.numeric(unlist(dfa[,i])))
     
-  maybeNA <- rep((na_length_check$lengths > threshold_miss_hrs), times = na_length_check$lengths)
-  dfa[maybeNA, i] <- NA
-  na_prop <- sum(is.na(dfa[, i])) / n_obs
-  if(max(na_length_check$lengths) > max_miss_hrs) 
+    maybeNA <- rep((na_length_check$lengths > threshold_miss_hrs), times = na_length_check$lengths)
+    dfa[maybeNA, i] <- NA
+    }
+
+
+### get list of missings proportions
+na_prop <- numeric()
+
+for (i in unique(ped_data$Sensor)){
+  na_prop[i] <- sum(is.na(dfa[, i])) / n_obs
+}
+
+h_miss_sensors <- names(na_prop[na_prop > threshold])
+l_miss_sensors <- setdiff(names(na_prop), h_miss_sensors)
+
+models <- list()
+fitted_data <- list()
+used_sensors <- list()
+p <- progress_estimated(length(unique(ped_data$Sensor)))
+### models suitable for GLM
+for (i in l_miss_sensors)
   {
-    model <- NULL
-  }
+  p$tick()$print()
+  options(na.action = na.omit)
+  # if(max(na_length_check$lengths) > max_miss_hrs) 
+  # {
+  #   model <- NULL
+  # }
   
   sensor_df <- unlist(dfa[, i])
   
-  if(na_prop < threshold)
-    {
-      scaled_model = FALSE
-    model <- glm(sensor_df ~  DayType*Time, family = 'quasipoisson', data = dfa)
-    }
-  else{
-        scaled_model = TRUE
-        sensor_loc <- loc[i, ]
-        sensor_dists <-  dplyr::mutate(filter(loc, ids != i), lons_dist = (sensor_loc$lons - lons),
-                               lats_dist = (sensor_loc$lats - lats),
-                               dist = sqrt(lons_dist^2 + lats_dist^2))
-        closest_sensor <- head(arrange(sensor_dists, dist),2)
-        close_sensor_counts <- unlist(dfa[, as.character(closest_sensor[1, ]$ids)])
-        csc_mu <- mean(close_sensor_counts)
-        csc_sd <- sqrt(var(close_sensor_counts))
-        csc_sc <- scale(close_sensor_counts)
-        close_sensor_counts_2 <- unlist(dfa[, as.character(closest_sensor[2, ]$ids)])
-        csc_mu2 <- mean(close_sensor_counts_2)
-        csc_sd2 <- sqrt(var(close_sensor_counts_2))
-        csc_sc2 <- scale(close_sensor_counts_2)
-        model <- lm(sensor_df ~ dfa$Time*csc_sc + dfa$Time*csc_sc2)
-    
-      }
+  model <- glm(sensor_df ~  Month + DayType*Time, family = 'quasipoisson', data = dfa)
+  
+  # models[[i]] <- stripGlmLR(model)
   models[[i]] <- model
   options(na.action = na.pass)
   fitted_data[[i]] <- predict(model, newdata = dfa, type = "response")
   options(na.action = na.omit)
+  dfa[is.na(dfa[, i]), i] <- fitted_data[[i]][is.na(dfa[, i])]
+  }
+
+
+
+  for (i in h_miss_sensors)
+  {
+    p$tick()$print()
+   
+    sensor_df <- unlist(dfa[, i])
+    
+    sensor_loc <- loc[i, ]
+    sensor_dists <-  dplyr::mutate(filter(loc, ids != i, ids %in% l_miss_sensors),
+                                   lons_dist = (sensor_loc$lons - lons),
+                                   lats_dist = (sensor_loc$lats - lats),
+                                   dist = sqrt(lons_dist^2 + lats_dist^2))
+    closest_sensor <- head(arrange(sensor_dists, dist),2)
+    close_sensor_counts <- unlist(dfa[, as.character(closest_sensor[1, ]$ids)])
+    csc_sc <- scale(close_sensor_counts)
+    close_sensor_counts_2 <- unlist(dfa[, as.character(closest_sensor[2, ]$ids)])
+    csc_sc2 <- scale(close_sensor_counts_2)
+    model <- lm(sensor_df ~ dfa$Time*csc_sc + dfa$Time*csc_sc2)
+    # models[[i]] <- stripGlmLR(model)
+    models[[i]] <- model
+    fitted_data[[i]] <- predict.lm(model, type = "response")
+    dfa[is.na(dfa[, i]), i] <- fitted_data[[i]][is.na(dfa[, i])]
   }
 
 map(fitted_data, is.na) %>% map(sum) %>% unlist
 
 model_summaries <- map(models, summary)
-# na_prop <- numeric()
-# 
-# for (i in unique(ped_data$Sensor)){
-#   na_prop[i] <- sum(is.na(df[, i])) / n_obs
-# }
+
+rsq_lm <- numeric()
+for (i in 1:18){
+  rsq_lm[i] <- model_summaries[[i + 25]]$r.squared
+}
+names(rsq_lm) <- h_miss_sensors
+
+rsq_lm %>% sort
+
+models <- map(models, stripGlmLR)
+
+
 # 
 # df[, c(22, 14, 9, 1, 17, 27, 35, 19, 24, 38, 31)] %>% melt(id = "Date_Time") %>%
 #   ggplot() + geom_line(aes(x = Date_Time, y = value, colour = variable), alpha = 0.25)
