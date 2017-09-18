@@ -3,10 +3,29 @@ library(tidyverse)
 library(lubridate)
 library(foreach)
 library(doSNOW)
+library(rwalkr)
 
 ##############################################
-ped_data <- read_csv("data/ped_df.csv")
-ped_data$X1 <- NULL
+ped_data <- NULL
+if(file.exists("data/ped_df.csv")){
+  ped_data <- read_csv("data/ped_df.csv")
+  ped_data$X1 <- NULL
+  }
+
+###############################################
+## update data from latest to 
+last_df_date <- ifelse(file.exists("data/ped_df.csv"),
+                        ped_data$Date %>% sort() %>%
+                        tail(1),
+                        as.Date("2013-12-31")) + 1 %>% as.Date(origin = "1970-01-01")
+
+if(last_df_date != today(tzone = "Australia/Melbourne")){
+  new_data <- rwalkr::walk_melb(from = last_df_date, to = today()-1)
+  ped_data <- rbind(ped_data, new_data)
+  write_csv(new_data, path = "data/ped_df.csv", append = TRUE)
+  }
+
+###############################################
 
 ped_data$Sensor_ID <- ped_data$Sensor
 ped_data$Hourly_Counts <- ped_data$Count
@@ -14,6 +33,13 @@ ped_data$Date_Time <- ymd_h(paste(ped_data$Date, ped_data$Time, sep = " "))
 ped_data$Day <- lubridate::wday(ped_data$Date_Time, label = TRUE, abbr = F)
 ped_data$Month <- lubridate::month(ped_data$Date_Time, label = TRUE, abbr = F)
 ped_data$Time <- as.factor(ped_data$Time)
+
+###############################################
+## long to wide
+ped_data %>% select(Sensor_ID, Count, Date_Time, Time, Month, Day) %>% 
+  spread(Sensor_ID, Count) -> dfa
+
+###############################################
 
 pub_hday14 <- read.csv("http://data.gov.au/dataset/b1bc6077-dadd-4f61-9f8c-002ab2cdff10/resource/56a5ee91-8e94-416e-81f7-3fe626958f7e/download/australianpublicholidays-201415.csv---australianpublicholidays.csv.csv")
 pub_hday15 <- read.csv("http://data.gov.au/dataset/b1bc6077-dadd-4f61-9f8c-002ab2cdff10/resource/13ca6df3-f6c9-42a1-bb20-6e2c12fe9d94/download/australianpublicholidays-201516.csv")
@@ -23,29 +49,20 @@ pub_hdays <- rbind(pub_hday14, pub_hday15, pub_hday16)
 pub_hdays$Date <- ymd(pub_hdays$Date)
 pub_hdays$Month <- lubridate::month(pub_hdays$Date, label = TRUE, abbr = F)
 pub_hdays$VIC <- 0
-pub_hdays$VIC[grep(glob2rx("*VIC*"), pub_hdays$`Applicable To`)] <- 1
-pub_hdays$VIC[grep("NAT", pub_hdays$`Applicable To`)] <- 1
+pub_hdays$VIC[grep(glob2rx("*VIC*"), pub_hdays$`Applicable.To`)] <- 1
+pub_hdays$VIC[grep("NAT", pub_hdays$`Applicable.To`)] <- 1
 
-dates1 <- full_seq(ped_data$Date_Time, period = 3600)
-hdayvals <- rep(0, length(dates1))
-hdayvals[as.Date(dates1) %in% pub_hdays$Date[pub_hdays$VIC == 1]] <- 1
-dates2 <- as.Date(rep(dates1, each = 43))
-hdayvals2 <- as.numeric(rep(hdayvals, each = 43))
 
-ped_data$IsHDay <- hdayvals2
-ped_data$HDay <- ped_data$Day
-levels(ped_data$HDay) <- c(levels(ped_data$Day), "Holiday")
-ped_data$HDay[ped_data$IsHDay == 1] <- "Holiday"
+dfa <- dfa %>% mutate(IsHDay = (date(Date_Time) %in% pub_hdays$Date[pub_hdays$VIC == 1]))
 
-ped_data$DayType <- ifelse(ped_data$Day == "Sunday", "Sunday",
-                     ifelse(ped_data$Day == "Saturday", "Saturday",
-                    ifelse(ped_data$Day == "Monday", "Monday",
-                     ifelse(ped_data$Day == "Friday", "Friday",
+dfa$DayType <-       ifelse(dfa$Day == "Sunday", "Sunday",
+                     ifelse(dfa$Day == "Saturday", "Saturday",
+                    ifelse(dfa$Day == "Monday", "Monday",
+                     ifelse(dfa$Day == "Friday", "Friday",
                                   "Midweek"))))
-ped_data$DayType[ped_data$IsHDay == 1] <- "Holiday"
+dfa$DayType[dfa$IsHDay == 1] <- "Holiday"
 
-ped_data %>% select(Sensor_ID, Count, Date_Time, DayType, Time, Month) %>% 
-  spread(Sensor_ID, Count) -> dfa
+
 
 ped_loc <- read_csv("data/Pedestrian_sensor_locations.csv")
 lats <- ped_loc$Latitude
@@ -54,6 +71,8 @@ ids <- ped_loc$`Sensor Description`
 
 
 setdiff(loc$ids, ped_data$Sensor)
+
+## name fix dictionary
 
 ids[ids == "Flinders Street Station Underpass"] <- "Flinders St Station Underpass"
 ids[ids == "Flinders St-Spark La"] <- "Flinders St-Spark Lane"
@@ -168,6 +187,8 @@ p <- progress_estimated(length(unique(ped_data$Sensor)))
 for (i in l_miss_sensors)
   {
   p$tick()$print()
+  print(paste("Current sensor being modelled is:", i, sep = " "))
+  
   options(na.action = na.omit)
   # if(max(na_length_check$lengths) > max_miss_hrs) 
   # {
@@ -191,7 +212,8 @@ for (i in l_miss_sensors)
   for (i in h_miss_sensors)
   {
     p$tick()$print()
-   
+    print(paste("Current sensor being modelled is:", i, sep = " "))
+    
     sensor_df <- unlist(dfa[, i])
     
     sensor_loc <- loc[i, ]
@@ -225,6 +247,7 @@ rsq_lm %>% sort
 
 models <- map(models, stripGlmLR)
 
+ggplot()
 
 # 
 # df[, c(22, 14, 9, 1, 17, 27, 35, 19, 24, 38, 31)] %>% melt(id = "Date_Time") %>%
