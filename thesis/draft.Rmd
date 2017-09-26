@@ -1,0 +1,350 @@
+---
+title: "Thesis Draft"
+author: "Gavin Chin"
+date: "21 September 2017"
+output:
+  html_document: default
+  pdf_document: default
+  word_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE, cache = TRUE)
+library(tidyverse)
+library(lubridate)
+library(foreach)
+library(doSNOW)
+library(rwalkr)
+library(pander)
+```
+
+```{r data_loading, warning=F, message=F}
+ped_data <- NULL
+if(file.exists("../data/ped_df.csv")){
+  ped_data <- read_csv("../data/ped_df.csv")
+  ped_data$X1 <- NULL
+  }
+
+## update data
+last_df_date <- ifelse(file.exists("../data/ped_df.csv"),
+                        ped_data$Date %>% sort() %>%
+                        tail(1),
+                        as.Date("2013-12-31")) + 1 %>% as.Date(origin = "1970-01-01")
+
+if(last_df_date != today(tzone = "Australia/Melbourne")){
+  new_data <- rwalkr::walk_melb(from = last_df_date, to = today()-1)
+  ped_data <- rbind(ped_data, new_data)
+  write_csv(ped_data, "../data/ped_df.csv")
+  }
+
+
+ped_data$Sensor_ID <- ped_data$Sensor
+ped_data$Hourly_Counts <- ped_data$Count
+ped_data$Date_Time <- ymd_h(paste(ped_data$Date, ped_data$Time, sep = " "))
+ped_data$Day <- lubridate::wday(ped_data$Date_Time, label = TRUE, abbr = F)
+ped_data$Month <- lubridate::month(ped_data$Date_Time, label = TRUE, abbr = F)
+ped_data$Time <- as.factor(ped_data$Time)
+
+## long to wide
+ped_data %>% select(Sensor_ID, Count, Date_Time, Time, Month, Day) %>% 
+  spread(Sensor_ID, Count) -> dfa
+
+pub_hday14 <- read.csv("http://data.gov.au/dataset/b1bc6077-dadd-4f61-9f8c-002ab2cdff10/resource/56a5ee91-8e94-416e-81f7-3fe626958f7e/download/australianpublicholidays-201415.csv---australianpublicholidays.csv.csv")
+pub_hday15 <- read.csv("http://data.gov.au/dataset/b1bc6077-dadd-4f61-9f8c-002ab2cdff10/resource/13ca6df3-f6c9-42a1-bb20-6e2c12fe9d94/download/australianpublicholidays-201516.csv")
+pub_hday16 <- read.csv("http://data.gov.au/dataset/b1bc6077-dadd-4f61-9f8c-002ab2cdff10/resource/a24ecaf2-044a-4e66-989c-eacc81ded62f/download/australianpublicholidays-201617.csv")
+pub_hdays <- rbind(pub_hday14, pub_hday15, pub_hday16)
+
+pub_hdays$Date <- ymd(pub_hdays$Date)
+pub_hdays$Month <- lubridate::month(pub_hdays$Date, label = TRUE, abbr = F)
+pub_hdays$VIC <- 0
+pub_hdays$VIC[grep(glob2rx("*VIC*"), pub_hdays$`Applicable.To`)] <- 1
+pub_hdays$VIC[grep("NAT", pub_hdays$`Applicable.To`)] <- 1
+
+
+dfa <- dfa %>% mutate(IsHDay = (date(Date_Time) %in% pub_hdays$Date[pub_hdays$VIC == 1]))
+
+dfa$DayType <-       ifelse(dfa$Day == "Sunday", "Sunday",
+                     ifelse(dfa$Day == "Saturday", "Saturday",
+                    ifelse(dfa$Day == "Monday", "Monday",
+                     ifelse(dfa$Day == "Friday", "Friday",
+                                  "Midweek"))))
+dfa$DayType[dfa$IsHDay == 1] <- "Holiday"
+dfa$HDay <- ifelse(dfa$IsHDay == 1, "Holiday", dfa$Day)
+```
+## Background  
+
+#### The Data: City of Melbourne Pedestrian Data  
+
+The City of Melbourne provides an open data platform to access council datasets, with the intention "to increase transparency, improve public services and support new economic and social initiatives"[^1]. This paper will focus primarily on the pedestrian data collected from pedestrian sensors placed throughout Melbourne's CBD. In particular, we want to be able to model the pedestrian traffic at different locations in the CBD, and forecast the traffic. In addition, we aim to have an interactive, dynamic data visualisation of the model to help us to understand how Melbourne operates. 
+
+The dataset being investigated can be obtained from the official City of Melbourne's open data[^2]. The pedestrian data is in the form of hourly pedestrian counts for `r length(unique(ped_data$Sensor_ID))` sensor locations. In total, there is `r nrow(ped_data)` observations in the dataset, representing `r nrow(dfa)` hours of data. It is available in `.csv` format, allowing for easy data import into R. We can also access the pedestrian data using the the `rwalkr` package by Earo Wang[^3]. This package allows R to import the data from `data.melbourne.vic.gov.au` which is updated monthly, or from the data source which is used by `pedestrian.melbourne.vic.gov.au` which is updated daily. 
+
+```{r}
+ped_data %>% select(Sensor, Hourly_Counts) %>% split(.$Sensor)  %>%
+            map(is.na) %>% map(sum) %>% unlist -> sensor_missvals
+```
+
+
+Not even an single sensor location has complete data for the period between between 1/1/2014 and `r paste(day(today()), month(today()), year(today()), sep = "/")`. 
+
+[^1]: from _'About Melbourne Data'_ page at https://data.melbourne.vic.gov.au/about
+
+[^2]: the specific pedestrian data is available at   https://data.melbourne.vic.gov.au/Transport-Movement/Pedestrian-volume-updated-monthly-/b2ak-trbp
+
+[^3]: https://github.com/earowang/rwalkr/
+
+### Imputation Literature Review Notes
+<!-- #### IMPUTATION OF MISSING CLASSIFIED TRAFFIC DATA DURING WINTER SEASON - _Hyuk-Jae Roh, Satish Sharma, Prasanta K. Sahu_   -->
+
+<!-- http://ir.lib.uwo.ca/cgi/viewcontent.cgi?article=1250&context=csce2016   -->
+<!-- - traffic counters with 40% to 60% missing values -->
+<!-- - heuristic methods -->
+<!--   - using "good historical values" or historical average values resulted -->
+<!--     in MARE (mean absolute relative error) reaching up to 80% -->
+<!--   - using moving average values worked better than other heuristic methods -->
+<!--   - all heuristic methods inhenrently cannot reflect sudden fluctuations during abnormal periods -->
+<!-- - pattern matching methods -->
+<!--   - find "candidate" volume pattern to compare to "study curve" and use the candidate which best matches the study curve -->
+<!-- - ARIMA -->
+<!--   - did not work well with multiple seasonalities -->
+<!-- - AI methods -->
+<!--   - genetic algorithms (GAs) and artificial neural networks (ANNs) -->
+
+<!-- Method used in the study was kNN with an interaction using a weather model, which they found to work best with large variations in traffic during winter -->
+<!-- (severe weather conditions affecting traffic volume)   -->
+
+Reviewing current research on imputation of missing values in traffic data, a paper on imputation of missing classified traffic data during winter season (Imputation of Missing Classified Traffic Data During Winter Season - _Hyuk-Jae Roh, Satish Sharma, Prasanta K. Sahu_) stated some methods which were found to be poor for imputation. The data they were attempting imputation for were traffic counters located on the highway network in Alberta, Canada with between 40% and 60% missing data. 
+
+Replacement with "good" historical values, or using historical average values was found to have resulted in very poor fit with high MARE (mean absolute relative error). Thet did find that using a moving average worked the best out of all the heuristic methods used. The largest problem with heuristic methods, however, is the inherent inability to reflect sudden fluctuations/shocks during abnormal periods. With such a large proportion of missing values, pattern matching methods were investigated. This involves comparing the _study curve_, the pattern at the counter which is to be imputed, to candidate patterns (patterns at other locations).  
+
+For the purposes of that paper, it was found to be inappropriate with the data being analysed.  However, unlike _Roh et al._ where patterns were compared to traffic volumes in different juristictions (large geographical distance), the geographic distances between the sensor locations in the Melbourne CBD pedestrian data are much smaller. Another difference is the randomness of the missing values, where the periods of missing data run longer in the Melbourne CBD pedestrian data compared to that in the Alberta traffic data. They proposed using non-parametric estimation methods with k-Nearest Neighbours for their imputation, although this is unlikely to work well with the lack of data at certain sensor locations in the Melbourne CBD Pedestrian data.
+
+
+<!-- #### Flexible and Robust Method for Missing Loop Detector Data Imputation - _K. C. Henrickson, Y. Zou, and Y. Wang_   -->
+
+<!-- http://docs.trb.org/prp/15-5804.pdf   -->
+<!-- - also use kNN -->
+
+<!-- #### Key Factors of K-nearest Neighbors Nonparametric Regression in Short-time Traffic Flow Forecasting -->
+<!-- http://www.springer.com/cda/content/document/cda_downloaddocument/9789462391017-c2.pdf?SGWID=0-0-45-1492476-p177147492 -->
+
+<!-- #### K-NEAREST NEIGHBOR ALGORITHM FOR UNIVARIATE TIME SERIES PREDICTION -->
+
+<!-- http://webbut.unitbv.ro/BU2012/Series%20III/BULETIN%20III/Sasu%20A.pdf -->
+
+
+## Methodology: Imputation of Missing Values  
+
+### Basic GLM Approach
+
+The first method used to impute missing values is to fit generalised linear models (GLMs) at each sensor location. Estimating a GLM with a Quasi-Poisson error distribution, where specify the model as:
+$$E \left[\text{Hourly_Counts} \vert \text{Sensor}, \text{HDay}, \text{Time} \right] = \exp (\mu_{\text{Sensor}, \text{HDay}, \text{Time}}) $$
+$$\text{where } \quad \mu_{\text{Sensor}, \text{HDay}, \text{Time}} \sim \text{Time}\times \text{HDay} \tag{1}$$
+`Time` is the time of the day, while `HDay` is the day of the week, with an additional factor level for public holidays. 
+Both these variables are categorical/factors. We cannot treat time of the day as an integer or numeric because it does not have a linear relationship with counts.s
+
+We use the Quasi-Poisson error distribution as opposed to normal/Gaussian errors due to the response variables being count data. The Poisson distribution allows for only non-negative integer values, while estimating a Quasi-Poisson model estimates an additional parameter for overdispersion. This allows more flexibility in the model by allowing the assumption that $E[Y]=Var[Y]=\mu$ to be relaxed. Instead, the Quasi-Poisson distribution allows for $Var[Y] = \theta \mu$. 
+
+```{r}
+## Base GLM models
+
+
+### code from:
+## http://www.win-vector.com/blog/2014/05/trimming-the-fat-from-glm-models-in-r/
+stripGlmLR = function(cm) {
+  cm$y = c()
+  cm$model = c()
+  
+  cm$residuals = c()
+  cm$fitted.values = c()
+  cm$effects = c()
+  cm$qr$qr = c()  
+  cm$linear.predictors = c()
+  cm$weights = c()
+  cm$prior.weights = c()
+  cm$data = c()
+  
+  
+  cm$family$variance = c()
+  cm$family$dev.resids = c()
+  cm$family$aic = c()
+  cm$family$validmu = c()
+  cm$family$simulate = c()
+  attr(cm$terms,".Environment") = c()
+  attr(cm$formula,".Environment") = c()
+  
+  cm
+}
+#######################################
+```
+
+
+```{r}
+cl <- makeCluster(2)
+registerDoSNOW(cl)
+models <- foreach(i = unique(ped_data$Sensor_ID)) %dopar% {
+  tr_dat <- data.frame(dfa [, i],  HDay = dfa$HDay, Time = dfa$Time)
+  colnames(tr_dat)[1] <- "Hourly_Counts"
+  model <- glm(Hourly_Counts ~ HDay*Time, data = tr_dat, family = quasipoisson())
+  model <- stripGlmLR(model)
+  return(model)
+}
+
+# ped_models[[31]]$xlevels <- ped_models[[1]]$xlevels
+
+```
+
+While this works well with a small proportion of missing values, it also requires a large number of observations. Specifically, with this paramaterisation, we have $23 + 7 + (23 \times 7) + 1=192$ coefficients to estimate. Another disadvantage of using this model is the lack of robustness to outliers due to the sensitivity of some parameters. This becomes particularly problematic at sensor locations which have been recently installed, where there is a lack of historical data. 
+
+### Small-Large Split Approach
+
+The proposed alternative approach to imputing the missing values in the data focuses on improving the models used at locations with a large proportion of missing values. A potential threshold value which could be used to class a sensor as having a "large" proportion of missing values vs a "small" proportion of missing values is 10%. At locations with a "small" proportion of missings, we can continue to use the GLM quasi-possion regression specified in $(1)$. At the locations with a large proportion of missing values, we need to use information from neighbouring sensors. 
+
+The first issue which needs to be addressed is the potential of values which are actually missing due to sensor failure or malfunction having a zero count. This issue will cause bias in the estimates, as well as affect the classification of a sensor. Of course, we cannot simply classify all zero counts as `NA`, as true zero values are possible. 
+
+```{r}
+n_obs <- nrow(dfa)
+threshold <- 0.1
+threshold_miss_hrs <- 50
+
+run_lengths <- foreach(i = unique(ped_data$Sensor)) %do%
+  {
+    dfa[is.na(dfa[, i]), i] <- 0
+    na_length_check <- rle(as.numeric(unlist(dfa[,i])))
+    maybeNA <- rep((na_length_check$lengths > threshold_miss_hrs), times = na_length_check$lengths)
+    rl <- dfa[, i] %>% unlist %>% rle()
+    dfa[maybeNA, i] <- NA
+    return(rl)
+    
+    }
+run_lengths %>% lapply(., `[[`, 1) %>%
+    unlist -> sequences
+
+pander(summary(sequences[sequences > 1]))
+
+# ggplot() + geom_boxplot(aes(y = sequences, x = "A"), alpha = 0.2) +
+#     xlab(NULL) + ylab("Length of same counts value") +
+#     theme(axis.text.x = element_blank(),
+#           axis.ticks.x = element_blank(),
+#           axis.title.x = element_blank()) +
+#     theme_minimal()
+```
+
+Instead, a simple check we can implement is to look for long sequences of zero counts. For example, we may want to classify any sequence of `Hourly_Counts = 0` running for longer than 24 hours as being considered `NA`. From the summary of lengths of repeated values (which are repeated at least once), we see that the distribution of the lengths are very positively skewed. With a mean length of `r round(mean(sequences[sequences > 1]), 2)` hours of missing data. Classifying any sequence of repeated values, typically 0, which has a length greater than 24 as `NA` should allow true zero counts to avoid being misclassified as `NA`.  
+
+After we have replaced questionable zero values with `NA`, we can calculate the proportion of missing values for each sensor location. From these calculated proportion, we can classify sensors as either having a "large" or "small" proportion of missing values, where large is defined as $\mathtt{NAprop}_{sensor} > \mathtt{threshold}$ and `threshold = 0.05`.  
+
+```{r}
+na_prop <- numeric()
+
+for (i in unique(ped_data$Sensor)){
+  na_prop[i] <- sum(is.na(dfa[, i])) / n_obs
+}
+
+large_miss_sensors <- names(na_prop[na_prop > threshold])
+small_miss_sensors <- setdiff(names(na_prop), large_miss_sensors)
+```
+
+Because the models for the sensors with a large proportion of missing values rely on having neighbouring sensors having complete cases (no missing values), we want to impute these values first. This will then allow us to have as much information to be available for the models which use neighbouring sensors to to train on.
+
+For sensors with a small proportion of missing values, we use a GLM quasi-poisson model again. To improve on the previous model used, we use the model:
+$$E \left[\text{Hourly_Counts} \vert  \text{Sensor}, \text{Month}, \text{DayType}, \text{Time} \right] = \exp (\mu_{\text{Sensor}, \text{Month}, \text{DayType}, \text{Time}}) $$
+
+$$\text{where } \quad \mu_{\text{Sensor}, \text{Month}, \text{DayType}, \text{Time}} \sim \text{Month} + \text{Time}\times \text{DayType} \tag{2}$$
+
+```{r alg_glm}
+models <- list()
+fitted_data <- list()
+used_sensors <- list()
+p <- progress_estimated(length(unique(ped_data$Sensor)))
+cl <- makeCluster(2)
+registerDoSNOW(cl)
+
+models <- foreach(i = small_miss_sensors) %dopar%
+{
+  p$tick()$print()
+  options(na.action = na.omit)
+  # if(max(na_length_check$lengths) > max_miss_hrs) 
+  # {
+  #   model <- NULL
+  # }
+  
+  sensor_df <- unlist(dfa[, i])
+  
+  model <- glm(sensor_df ~  Month + DayType*Time, family = 'quasipoisson', data = dfa)
+  
+  options(na.action = na.pass)
+  fitted_data[[i]] <- predict(model, newdata = dfa, type = "response")
+  options(na.action = na.omit)
+  dfa[is.na(dfa[, i]), i] <- fitted_data[[i]][is.na(dfa[, i])]
+  return(stripGlmLR(model))
+}
+```
+
+
+Instead of `HDay`, we use `DayType` which classifies Tuesday, Wednesday and Thursday as a single factor level, Midweek. We do this as the daily patterns on these weekdays are similar. This reduces the number of parameters to estimate by 46. A result of this is we also have more robust estimates for the midweek days, being less sensitive to outliers. Because this model will be estimated for sensor locations with few missing values,  we have enough data to add in month as an additive effect. This will help capture the annual seasonality.  
+
+Using these estimated models, we impute the missing values to produce complete data at all these sensor locations. For the locations with high proportions of missing values can be predicted using the now complete data from all the locations which had a small proportion of missing values. Using a threshold of 10%, this gives us `r length(small_miss_sensors)` sensor locations to use.  
+
+For each of the sensor locations with high proportions of missings, we need to decide which sensor to use for prediction. A simple method of finding a geographical closest neighbour is to take the haversine/great-circle distance between the sensor to be imputed and all the possible candidates.
+```{r, message=F}
+# Calculates the geodesic distance between two points specified by radian latitude/longitude using the
+# Spherical Law of Cosines (slc)
+# source: https://www.r-bloggers.com/great-circle-distance-calculations-in-r/
+gcd.slc <- function(long1, lat1, long2, lat2) {
+  R <- 6371 # Earth mean radius [km]
+  d <- acos(sin(lat1)*sin(lat2) + cos(lat1)*cos(lat2) * cos(long2-long1)) * R
+  return(d) # Distance in km
+}
+
+ped_loc <- read_csv("../data/Pedestrian_sensor_locations.csv")
+lats <- ped_loc$Latitude
+lons <- ped_loc$Longitude
+ids <- ped_loc$`Sensor Description`
+
+## name fix dictionary
+{
+ids[ids == "Flinders Street Station Underpass"] <- "Flinders St Station Underpass"
+ids[ids == "Flinders St-Spark La"] <- "Flinders St-Spark Lane"
+ids[ids == "Queen St (West)"] <-  "Queen Street (West)"
+ids[ids == "The Arts Centre"] <- "Vic Arts Centre"
+ids[ids == "Lonsdale St-Spring St (West)"] <- "Spring St-Lonsdale St (South)"
+ids[ids == "Lygon St (East)"] <- "Lygon Street (East)"
+ids[ids == "QV Market-Elizabeth St (West)"] <- "QV Market-Elizabeth (West)"
+ids[ids == "Melbourne Convention Exhibition Centre"] <- "Convention/Exhibition Centre"
+ids[ids == "St Kilda Rd-Alexandra Gardens"] <- "St. Kilda-Alexandra Gardens"
+}
+loc <- data.frame(lons, lats, ids)
+rownames(loc) <- ids
+```
+
+
+```{r alg_lm}
+for (i in large_miss_sensors){
+  sensor_dists <- numeric()
+  for (j in small_miss_sensors){
+      dists <- gcd.slc(loc[i,]$lons, loc[i,]$lats, loc[j,]$lons, loc[j,]$lats)
+      sensor_dists[j] <- dists
+  }
+  names(sensor_dists) <- small_miss_sensors
+  closest_sensor <- sensor_dists %>% sort %>%
+                    head(2) %>% names
+  close_df_scale <- dfa[, closest_sensor[1]] %>% unlist %>% scale
+  close_df_scale2 <- dfa[, closest_sensor[2]] %>% unlist %>% scale
+
+  sensor_df <- dfa[, i] %>% unlist
+  model <- glm(sensor_df ~ Time*close_df_scale + Time*close_df_scale2, data = dfa, family = quasipoisson())
+  models[[i]] <- stripGlmLR(model)
+}
+
+```
+
+Using the two geographically closest sensors with complete cases, we use another GLM specified as:
+$$E \left[ \text{Hourly_Counts}_{\text{sensor}} \vert \text{Time}, \text{Hourly_Counts}_{\text{closest sensors}} \right] = \mu_{\text{Time}, \text{Hourly_Counts}_{\text{closest sensors}}}$$
+$$\text{where } \quad  \mu_{\text{Time}, \text{Hourly_Counts}_{\text{closest sensors}}} \sim \text{Time} \times \text{Hourly_Counts}_{\text{closest sensor 1}} + \text{Time} \times \text{Hourly_Counts}_{\text{closest sensor 2}}$$
+
+We would expect that the amount of people passing through the neighbouring sensors will be a strong predictor of the pedestrian counts as they are likely to also pass through. Using geographical neighbours, we can capture rare events effectively. Any large shocks to the counts at the neighbouring sensors will have an effect on the counts to be imputed.  
+
+In order to use a mixture of the patterns from two different sensors, we need to use the scaled counts at the neighbouring sensors to avoid the magnitude of the counts having an effect on the predicted counts. We scale the counts by standardising to $\mu = 0, \sigma^2 = 1$. Because the covariance with neighbouring sensors may differ over time, we also add an interaction term between the neighbouring sensor counts and the time of the day.
+
+

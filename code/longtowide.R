@@ -5,15 +5,14 @@ library(foreach)
 library(doSNOW)
 library(rwalkr)
 
-##############################################
+
 ped_data <- NULL
 if(file.exists("data/ped_df.csv")){
   ped_data <- read_csv("data/ped_df.csv")
   ped_data$X1 <- NULL
   }
 
-###############################################
-## update data from latest to 
+## update data
 last_df_date <- ifelse(file.exists("data/ped_df.csv"),
                         ped_data$Date %>% sort() %>%
                         tail(1),
@@ -22,10 +21,9 @@ last_df_date <- ifelse(file.exists("data/ped_df.csv"),
 if(last_df_date != today(tzone = "Australia/Melbourne")){
   new_data <- rwalkr::walk_melb(from = last_df_date, to = today()-1)
   ped_data <- rbind(ped_data, new_data)
-  write_csv(new_data, path = "data/ped_df.csv", append = TRUE)
+  write_csv(ped_data, "data/ped_df.csv")
   }
 
-###############################################
 
 ped_data$Sensor_ID <- ped_data$Sensor
 ped_data$Hourly_Counts <- ped_data$Count
@@ -34,12 +32,9 @@ ped_data$Day <- lubridate::wday(ped_data$Date_Time, label = TRUE, abbr = F)
 ped_data$Month <- lubridate::month(ped_data$Date_Time, label = TRUE, abbr = F)
 ped_data$Time <- as.factor(ped_data$Time)
 
-###############################################
 ## long to wide
 ped_data %>% select(Sensor_ID, Count, Date_Time, Time, Month, Day) %>% 
   spread(Sensor_ID, Count) -> dfa
-
-###############################################
 
 pub_hday14 <- read.csv("http://data.gov.au/dataset/b1bc6077-dadd-4f61-9f8c-002ab2cdff10/resource/56a5ee91-8e94-416e-81f7-3fe626958f7e/download/australianpublicholidays-201415.csv---australianpublicholidays.csv.csv")
 pub_hday15 <- read.csv("http://data.gov.au/dataset/b1bc6077-dadd-4f61-9f8c-002ab2cdff10/resource/13ca6df3-f6c9-42a1-bb20-6e2c12fe9d94/download/australianpublicholidays-201516.csv")
@@ -168,6 +163,7 @@ geo_match = TRUE
     dfa[maybeNA, i] <- NA
     }
 
+# Algorithm 1
 
 ### get list of missings proportions
 na_prop <- numeric()
@@ -183,7 +179,7 @@ models <- list()
 fitted_data <- list()
 used_sensors <- list()
 p <- progress_estimated(length(unique(ped_data$Sensor)))
-### models suitable for GLM
+
 for (i in l_miss_sensors)
   {
   p$tick()$print()
@@ -245,15 +241,87 @@ names(rsq_lm) <- h_miss_sensors
 
 rsq_lm %>% sort
 
-models <- map(models, stripGlmLR)
 
-ggplot()
+# Algorithm 2
+dfa <- ori %>% filter(Date_Time < "2017-01-01")
 
-# 
-# df[, c(22, 14, 9, 1, 17, 27, 35, 19, 24, 38, 31)] %>% melt(id = "Date_Time") %>%
-#   ggplot() + geom_line(aes(x = Date_Time, y = value, colour = variable), alpha = 0.25)
-# 
-# good_sensors <- data.frame(sensor = unique(ped_data$Sensor), na_prop) %>%
-#                 filter(na_prop < 0.01) %>% select(sensor)
-# 
-# knn_testmodel <- knn.reg(df, test = NULL, y = df$`Southbank`, k = 3)
+
+na_prop <- numeric()
+
+for (i in unique(ped_data$Sensor)){
+  na_prop[i] <- sum(is.na(dfa[, i])) / n_obs
+}
+
+h_miss_sensors <- names(na_prop[na_prop > threshold])
+l_miss_sensors <- setdiff(names(na_prop), h_miss_sensors)
+
+models <- list()
+fitted_data <- list()
+used_sensors <- list()
+p <- progress_estimated(length(unique(ped_data$Sensor)))
+
+for (i in l_miss_sensors)
+{
+  p$tick()$print()
+  options(na.action = na.omit)
+  # if(max(na_length_check$lengths) > max_miss_hrs) 
+  # {
+  #   model <- NULL
+  # }
+  
+  sensor_df <- unlist(dfa[, i])
+  
+  model <- glm(sensor_df ~  Month + DayType*Time, family = 'quasipoisson', data = dfa)
+  
+  # models[[i]] <- stripGlmLR(model)
+  models[[i]] <- model
+  options(na.action = na.pass)
+  fitted_data[[i]] <- predict(model, newdata = dfa, type = "response")
+  options(na.action = na.omit)
+  dfa[is.na(dfa[, i]), i] <- fitted_data[[i]][is.na(dfa[, i])]
+}
+
+
+l_miss_sensors_n <- l_miss_sensors
+
+for (i in h_miss_sensors)
+{
+  p$tick()$print()
+  print(paste("Current sensor being modelled is:", i, sep = " "))
+  
+  sensor_df <- unlist(dfa[, i])
+  
+  sensor_loc <- loc[i, ]
+  sensor_dists <-  dplyr::mutate(filter(loc, ids != i, ids %in% l_miss_sensors_n),
+                                 lons_dist = (sensor_loc$lons - lons),
+                                 lats_dist = (sensor_loc$lats - lats),
+                                 dist = sqrt(lons_dist^2 + lats_dist^2))
+  closest_sensor <- head(arrange(sensor_dists, dist),2)
+  close_sensor_counts <- unlist(dfa[, as.character(closest_sensor[1, ]$ids)])
+  csc_sc <- scale(close_sensor_counts)
+  close_sensor_counts_2 <- unlist(dfa[, as.character(closest_sensor[2, ]$ids)])
+  csc_sc2 <- scale(close_sensor_counts_2)
+  model <- lm(sensor_df ~ dfa$Time*csc_sc + dfa$Time*csc_sc2)
+  # models[[i]] <- stripGlmLR(model)
+  models[[i]] <- model
+  fitted_data[[i]] <- predict.lm(model, type = "response")
+  dfa[is.na(dfa[, i]), i] <- fitted_data[[i]][is.na(dfa[, i])]
+  if(summary(model)$r.squared > 0.9){
+    l_miss_sensors_n <- rbind(l_miss_sensors_n, i)
+    }
+}
+
+map(fitted_data, is.na) %>% map(sum) %>% unlist
+
+model_summaries <- map(models, summary)
+
+rsq_lm <- numeric()
+for (i in 1:18){
+  rsq_lm[i] <- model_summaries[[i + 25]]$r.squared
+}
+names(rsq_lm) <- setdiff(unique(ped_data$Sensor), l_miss_sensors)
+
+rsq_lm %>% sort
+
+ggplot() + geom_point(aes(x = na_prop[h_miss_sensors], y = rsq_lm)) +
+           geom_smooth(aes(x = na_prop[h_miss_sensors], y = rsq_lm), method = "lm")
