@@ -9,13 +9,15 @@ output:
 ---
 
 ```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = FALSE, cache = TRUE)
+knitr::opts_chunk$set(echo = FALSE, cache = TRUE,
+                      message = FALSE, warning = FALSE)
 library(tidyverse)
 library(lubridate)
 library(foreach)
 library(doSNOW)
 library(rwalkr)
 library(pander)
+library(RColorBrewer)
 ```
 
 ```{r data_loading, warning=F, message=F}
@@ -70,6 +72,8 @@ dfa$DayType <-       ifelse(dfa$Day == "Sunday", "Sunday",
                                   "Midweek"))))
 dfa$DayType[dfa$IsHDay == 1] <- "Holiday"
 dfa$HDay <- ifelse(dfa$IsHDay == 1, "Holiday", dfa$Day)
+original_df <- dfa
+dfa <- filter(dfa, Date_Time < "2017-01-01")
 ```
 ## Background  
 
@@ -115,9 +119,9 @@ Not even an single sensor location has complete data for the period between betw
 
 Reviewing current research on imputation of missing values in traffic data, a paper on imputation of missing classified traffic data during winter season (Imputation of Missing Classified Traffic Data During Winter Season - _Hyuk-Jae Roh, Satish Sharma, Prasanta K. Sahu_) stated some methods which were found to be poor for imputation. The data they were attempting imputation for were traffic counters located on the highway network in Alberta, Canada with between 40% and 60% missing data. 
 
-Replacement with "good" historical values, or using historical average values was found to have resulted in very poor fit with high MARE (mean absolute relative error). Thet did find that using a moving average worked the best out of all the heuristic methods used. The largest problem with heuristic methods, however, is the inherent inability to reflect sudden fluctuations/shocks during abnormal periods. With such a large proportion of missing values, pattern matching methods were investigated. This involves comparing the _study curve_, the pattern at the counter which is to be imputed, to candidate patterns (patterns at other locations).  
+Replacement with "good" historical values, or using historical average values was found to have resulted in very poor fit with high MARE/MARD (mean absolute relative error/difference). They did find that using a moving average worked the best out of all the heuristic methods used. The largest problem with heuristic methods, however, is the inherent inability to reflect sudden fluctuations/shocks during abnormal periods. With such a large proportion of missing values, pattern matching methods were investigated. This involves comparing the _study curve_, the pattern at the counter which is to be imputed, to candidate patterns (patterns at other locations).  
 
-For the purposes of that paper, it was found to be inappropriate with the data being analysed.  However, unlike _Roh et al._ where patterns were compared to traffic volumes in different juristictions (large geographical distance), the geographic distances between the sensor locations in the Melbourne CBD pedestrian data are much smaller. Another difference is the randomness of the missing values, where the periods of missing data run longer in the Melbourne CBD pedestrian data compared to that in the Alberta traffic data. They proposed using non-parametric estimation methods with k-Nearest Neighbours for their imputation, although this is unlikely to work well with the lack of data at certain sensor locations in the Melbourne CBD Pedestrian data.
+For the purposes of that paper, it was found to be inappropriate with the data being analysed.  However, unlike _Roh et al._ where patterns were compared to traffic volumes in different jurisdictions (large geographical distance), the geographic distances between the sensor locations in the Melbourne CBD pedestrian data are much smaller. Another difference is the randomness of the missing values, where the periods of missing data run longer in the Melbourne CBD pedestrian data compared to that in the Alberta traffic data. They proposed using non-parametric estimation methods with k-Nearest Neighbours for their imputation, although this is unlikely to work well with the lack of data at certain sensor locations in the Melbourne CBD Pedestrian data.
 
 
 <!-- #### Flexible and Robust Method for Missing Loop Detector Data Imputation - _K. C. Henrickson, Y. Zou, and Y. Wang_   -->
@@ -256,12 +260,9 @@ $$\text{where } \quad \mu_{\text{Sensor}, \text{Month}, \text{DayType}, \text{Ti
 models <- list()
 fitted_data <- list()
 used_sensors <- list()
+dfa2 <- dfa
 p <- progress_estimated(length(unique(ped_data$Sensor)))
-cl <- makeCluster(2)
-registerDoSNOW(cl)
-
-models <- foreach(i = small_miss_sensors) %dopar%
-{
+for(i in small_miss_sensors){
   p$tick()$print()
   options(na.action = na.omit)
   # if(max(na_length_check$lengths) > max_miss_hrs) 
@@ -272,13 +273,21 @@ models <- foreach(i = small_miss_sensors) %dopar%
   sensor_df <- unlist(dfa[, i])
   
   model <- glm(sensor_df ~  Month + DayType*Time, family = 'quasipoisson', data = dfa)
-  
-  options(na.action = na.pass)
-  fitted_data[[i]] <- predict(model, newdata = dfa, type = "response")
-  options(na.action = na.omit)
-  dfa[is.na(dfa[, i]), i] <- fitted_data[[i]][is.na(dfa[, i])]
-  return(stripGlmLR(model))
+  models[[i]] <- (stripGlmLR(model))
 }
+```
+
+```{r alg_glm_impute}
+  options(na.action = na.pass)
+for(i in small_miss_sensors){
+  ts_dat <- data.frame(Month = dfa$Month, DayType = dfa$DayType, Time = dfa$Time)
+  fitted_data[[i]] <- predict.glm(models[[i]],newdata = ts_dat, type = "response")
+}
+  options(na.action = na.omit)
+  for(i in small_miss_sensors){
+    dfa2[is.na(dfa[, i]), i] <- fitted_data[[i]][is.na(dfa[, i])]
+    }
+  
 ```
 
 
@@ -321,6 +330,7 @@ rownames(loc) <- ids
 
 ```{r alg_lm}
 for (i in large_miss_sensors){
+  # p$tick()$print()
   sensor_dists <- numeric()
   for (j in small_miss_sensors){
       dists <- gcd.slc(loc[i,]$lons, loc[i,]$lats, loc[j,]$lons, loc[j,]$lats)
@@ -329,12 +339,23 @@ for (i in large_miss_sensors){
   names(sensor_dists) <- small_miss_sensors
   closest_sensor <- sensor_dists %>% sort %>%
                     head(2) %>% names
-  close_df_scale <- dfa[, closest_sensor[1]] %>% unlist %>% scale
-  close_df_scale2 <- dfa[, closest_sensor[2]] %>% unlist %>% scale
+  close_df_scale <- dfa2[, closest_sensor[1]] %>% unlist %>% scale
+  close_df_scale2 <- dfa2[, closest_sensor[2]] %>% unlist %>% scale
 
-  sensor_df <- dfa[, i] %>% unlist
-  model <- glm(sensor_df ~ Time*close_df_scale + Time*close_df_scale2, data = dfa, family = quasipoisson())
+  sensor_df <- dfa2[, i] %>% unlist
+  
+  tr_dat <- data.frame(sensor_df, close_df_scale, close_df_scale2, Time = dfa$Time)
+  options(na.action = na.omit)
+  model <- glm(sensor_df ~ Time*close_df_scale + Time*close_df_scale2,
+               data = tr_dat, family = quasipoisson())
   models[[i]] <- stripGlmLR(model)
+  
+  options(na.action = na.pass)
+  fitted_data[[i]] <- predict(model, newdata = tr_dat, type = "response")
+  options(na.action = na.omit)
+
+  dfa2[is.na(dfa[, i]), i] <- fitted_data[[i]][is.na(dfa[, i])]
+  
 }
 
 ```
@@ -343,8 +364,58 @@ Using the two geographically closest sensors with complete cases, we use another
 $$E \left[ \text{Hourly_Counts}_{\text{sensor}} \vert \text{Time}, \text{Hourly_Counts}_{\text{closest sensors}} \right] = \mu_{\text{Time}, \text{Hourly_Counts}_{\text{closest sensors}}}$$
 $$\text{where } \quad  \mu_{\text{Time}, \text{Hourly_Counts}_{\text{closest sensors}}} \sim \text{Time} \times \text{Hourly_Counts}_{\text{closest sensor 1}} + \text{Time} \times \text{Hourly_Counts}_{\text{closest sensor 2}}$$
 
-We would expect that the amount of people passing through the neighbouring sensors will be a strong predictor of the pedestrian counts as they are likely to also pass through. Using geographical neighbours, we can capture rare events effectively. Any large shocks to the counts at the neighbouring sensors will have an effect on the counts to be imputed.  
+We would expect that the amount of people passing through the neighbouring sensors will be a strong predictor of the pedestrian counts as they are likely to also pass through. Using geographical neighbours, we can capture rare events effectively. Any large shocks to the counts at the neighbouring sensors will have an effect on the counts to be imputed.
 
 In order to use a mixture of the patterns from two different sensors, we need to use the scaled counts at the neighbouring sensors to avoid the magnitude of the counts having an effect on the predicted counts. We scale the counts by standardising to $\mu = 0, \sigma^2 = 1$. Because the covariance with neighbouring sensors may differ over time, we also add an interaction term between the neighbouring sensor counts and the time of the day.
 
+## Imputation Results  
 
+For the purposes of evaluating the imputation method at a location with a small proportion of missing values, we will first look at the counts from Southern Cross Station. Firstly, we evaluate the goodness of fit of the predictions made within the training period (01/01/2014 to 31/12/2016).
+
+```{r}
+ggplot(data = NULL, aes(x = original_df %>% 
+             filter(Date_Time < "2017-01-01") %>%
+             .[, "Southern Cross Station"],
+           y = fitted_data$`Southern Cross Station`)) +
+           geom_point(alpha = 0.05) +
+           geom_abline(aes(slope = 1, intercept = 0),
+                       colour = brewer.pal(3, 'Dark2')[1],
+                       alpha = 0.7, size = 1.5,) +
+           geom_smooth(method = "lm", size = 1.5, alpha = 0.7, 
+                       colour = brewer.pal(3, 'Dark2')[2]) +
+           theme_minimal() + theme(aspect.ratio = 1) +
+           xlab("Actual Pedestrian Count") +
+           ylab("Predicted Pedestrian Count") +
+           ggtitle("Actual against Predicted Counts at Southern Cross Station")
+           
+```
+
+\begin{center}
+\textbf{Figure }:  A plot of the Actual vs Predicted pedestrian counts at Southern Cross Station. The green line is $x=y$, representing a reference for perfect fit, while orange line is the linear fit.  
+\end{center}
+
+Visually, we can see that the fitted values are good estimates as the relationship between the actuals vs fitted is very close to 1:1. This is seen when we perform a least squares estimate of $\widehat{Fitted}_t = \hat{\beta}_0 + \hat{\beta}_1 Actual_t$, and the estimated $\hat{\beta}_0$ is close to 0 and $\hat{\beta}_1$ is close to 1. 
+
+Focusing on the date 04/07/2014, which has 3 hours of missing data:
+```{r}
+fit_dat_plot <- data.frame(Date_Time = dfa2$Date_Time,
+                           fit_ = dfa2$`Southern Cross Station`) %>%
+                  filter(Date_Time < "2014-07-06 00:00:00",
+                         Date_Time > "2014-07-04 12:00:00") %>%
+                        .$fit_
+
+ggplot(original_df %>%  filter(Date_Time < "2014-07-06 00:00:00",
+                               Date_Time > "2014-07-04 12:00:00")) +
+  geom_line(aes(x = Date_Time, y = fit_dat_plot), colour = 'red',
+            size = 2) +
+  geom_line(aes(x = Date_Time, y = `Southern Cross Station`),
+            size  = 2) +
+  theme_minimal() + xlab("Time") +
+  ylab("Pedestrian Counts at Southern Cross Station") +
+  ggtitle("Pedestrian Counts at Southern Cross Station on 04/07/2014 - 05/07/2014")
+```
+\begin{center}
+\textbf{Figure }:  A plot of the pedestrian counts at Southern Cross Station. The black line is the observed counts, where the red line is the imputed counts.  
+\end{center}
+
+Here we see that the GLM model with only time and date based variables work well for fitting small periods of missing data. 
