@@ -3,8 +3,8 @@ title: "Thesis Draft"
 author: "Gavin Chin"
 date: "21 September 2017"
 output:
-  html_document: default
   pdf_document: default
+  html_document: default
   word_document: default
 ---
 
@@ -143,7 +143,7 @@ For the purposes of that paper, it was found to be inappropriate with the data b
 ### Basic GLM Approach
 
 The first method used to impute missing values is to fit generalised linear models (GLMs) at each sensor location. Estimating a GLM with a Quasi-Poisson error distribution, where specify the model as:
-$$E \left[\text{Hourly_Counts} \vert \text{Sensor}, \text{HDay}, \text{Time} \right] = \exp (\mu_{\text{Sensor}, \text{HDay}, \text{Time}}) $$
+$$E \left[\text{HourlyCounts} \vert \text{Sensor}, \text{HDay}, \text{Time} \right] = \exp (\mu_{\text{Sensor}, \text{HDay}, \text{Time}}) $$
 $$\text{where } \quad \mu_{\text{Sensor}, \text{HDay}, \text{Time}} \sim \text{Time}\times \text{HDay} \tag{1}$$
 `Time` is the time of the day, while `HDay` is the day of the week, with an additional factor level for public holidays. 
 Both these variables are categorical/factors. We cannot treat time of the day as an integer or numeric because it does not have a linear relationship with counts.s
@@ -262,7 +262,7 @@ small_miss_sensors <- setdiff(names(na_prop), large_miss_sensors)
 Because the models for the sensors with a large proportion of missing values rely on having neighbouring sensors having complete cases (no missing values), we want to impute these values first. This will then allow us to have as much information to be available for the models which use neighbouring sensors to to train on.
 
 For sensors with a small proportion of missing values, we use a GLM quasi-poisson model again. To improve on the previous model used, we use the model:
-$$E \left[\text{Hourly_Counts} \vert  \text{Sensor}, \text{Month}, \text{DayType}, \text{Time} \right] = \exp (\mu_{\text{Sensor}, \text{Month}, \text{DayType}, \text{Time}}) $$
+$$E \left[\text{HourlyCounts} \vert  \text{Sensor}, \text{Month}, \text{DayType}, \text{Time} \right] = \exp (\mu_{\text{Sensor}, \text{Month}, \text{DayType}, \text{Time}}) $$
 
 $$\text{where } \quad \mu_{\text{Sensor}, \text{Month}, \text{DayType}, \text{Time}} \sim \text{Month} + \text{Time}\times \text{DayType} \tag{2}$$
 
@@ -370,8 +370,8 @@ for (i in large_miss_sensors){
 ```
 
 Using the two geographically closest sensors with complete cases, we use another GLM specified as:
-$$E \left[ \text{Hourly_Counts}_{\text{sensor}} \vert \text{Time}, \text{Hourly_Counts}_{\text{closest sensors}} \right] = \mu_{\text{Time}, \text{Hourly_Counts}_{\text{closest sensors}}}$$
-$$\text{where } \quad  \mu_{\text{Time}, \text{Hourly_Counts}_{\text{closest sensors}}} \sim \text{Time} \times \text{Hourly_Counts}_{\text{closest sensor 1}} + \text{Time} \times \text{Hourly_Counts}_{\text{closest sensor 2}}$$
+$$E \left[ \text{HourlyCounts}_{\text{sensor}} \vert \text{Time}, \text{HourlyCounts}_{\text{closest sensors}} \right] = \mu_{\text{Time}, \text{HourlyCounts}_{\text{closest sensors}}}$$
+$$\text{where } \quad  \mu_{\text{Time}, \text{HourlyCounts}_{\text{closest sensors}}} \sim \text{Time} \times \text{HourlyCounts}_{\text{closest sensor 1}} + \text{Time} \times \text{HourlyCounts}_{\text{closest sensor 2}}$$
 
 We would expect that the amount of people passing through the neighbouring sensors will be a strong predictor of the pedestrian counts as they are likely to also pass through. Using geographical neighbours, we can capture rare events effectively. Any large shocks to the counts at the neighbouring sensors will have an effect on the counts to be imputed.
 
@@ -398,6 +398,8 @@ ggplot(data = NULL, aes(x = original_df %>%
            geom_smooth(method = "lm", size = 1.5, alpha = 0.7, 
                        colour = brewer.pal(3, 'Dark2')[2]) +
            theme_minimal() + theme(aspect.ratio = 1) +
+           scale_x_continuous(limits = c(0, 4000)) +
+           scale_y_continuous(limits = c(0, 4000)) +
            xlab("Actual Pedestrian Count") +
            ylab("Predicted Pedestrian Count") +
            ggtitle("Actual against Predicted Counts at Southern Cross Station")
@@ -412,7 +414,7 @@ Visually, we can see that the fitted values are good estimates as the relationsh
 
 Here we see that the GLM model with only time and date based variables work well for fitting small periods of missing data.  
 
-However, if we try to use this same model specification at sensor locations with large proportions of missing values, the fit is poor. We use the sensor at Australia on Collins to 
+However, if we try to use this same model specification at sensor locations with large proportions of missing values, the fit is poor. We use the sensor at Australia on Collins, where the proportion of missing values is `r round(na_prop["Australia on Collins"]*100, 2)`%. 
 ```{r}
 options(na.action = na.omit)
 ggplot(data = NULL, aes(x = original_df[-(is.na(original_df$`Australia on Collins`)), ] %>% 
@@ -433,7 +435,7 @@ ggplot(data = NULL, aes(x = original_df[-(is.na(original_df$`Australia on Collin
            ggtitle("Actual against Predicted Counts at Australia on Collins")
            
 ```
-We can see that the model is heavily biased by the false 0 values, causing the predicted values to be underestimate (slope of the fitted line is $<1$). 
+We can see that the model is heavily biased by the false 0 values, causing the predicted values to be underestimate (slope of the fitted line is $<1$). This demonstrates the importance of ensuring outliers are removed from the data. 
 
 
 
@@ -445,7 +447,8 @@ We can see that the model is heavily biased by the false 0 values, causing the p
 
 
 
-Focusing on the date 04/07/2014, which has 3 hours of missing data:
+Focusing on the date 04/07/2014, which has 3 hours of missing data:  
+
 ```{r}
 fit_dat_plot <- data.frame(Date_Time = dfa2$Date_Time,
                            fit_ = dfa2$`Southern Cross Station`) %>%
