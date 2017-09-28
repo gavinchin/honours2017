@@ -74,6 +74,7 @@ dfa$DayType[dfa$IsHDay == 1] <- "Holiday"
 dfa$HDay <- ifelse(dfa$IsHDay == 1, "Holiday", dfa$Day)
 original_df <- dfa
 dfa <- filter(dfa, Date_Time < "2017-01-01")
+ori_2 <- filter(original_df, Date_Time < "2017-01-01")
 ```
 ## Background  
 
@@ -186,15 +187,21 @@ stripGlmLR = function(cm) {
 ```{r}
 cl <- makeCluster(2)
 registerDoSNOW(cl)
-models <- foreach(i = unique(ped_data$Sensor_ID)) %dopar% {
-  tr_dat <- data.frame(dfa [, i],  HDay = dfa$HDay, Time = dfa$Time)
-  colnames(tr_dat)[1] <- "Hourly_Counts"
-  model <- glm(Hourly_Counts ~ HDay*Time, data = tr_dat, family = quasipoisson())
-  model <- stripGlmLR(model)
-  return(model)
-}
-
+fitted_base <- list()
+models_base <- foreach(i = unique(ped_data$Sensor_ID)) %dopar% {
+    tr_dat <- data.frame(dfa[, i],  HDay = dfa$HDay, Time = dfa$Time)
+    colnames(tr_dat)[1] <- "Hourly_Counts"
+    model <- glm(Hourly_Counts ~ HDay*Time, data = tr_dat, family = quasipoisson())
+    return(stripGlmLR(model))
+  }
+names(models_base) <- unique(ped_data$Sensor_ID)
 # ped_models[[31]]$xlevels <- ped_models[[1]]$xlevels
+for (i in unique(ped_data$Sensor)){  
+  tr_dat <- data.frame(dfa [, i],  HDay = dfa$HDay, Time = dfa$Time)
+  options(na.action = na.pass)
+  fitted_base[[i]] <- predict.glm(models_base[[i]], newdata = tr_dat, type = "response")
+  options(na.action = na.omit)
+  }
 
 ```
 
@@ -211,16 +218,19 @@ n_obs <- nrow(dfa)
 threshold <- 0.1
 threshold_miss_hrs <- 50
 
-run_lengths <- foreach(i = unique(ped_data$Sensor)) %do%
-  {
+run_lengths <- list()
+
+for(i in unique(ped_data$Sensor)){
     dfa[is.na(dfa[, i]), i] <- 0
     na_length_check <- rle(as.numeric(unlist(dfa[,i])))
     maybeNA <- rep((na_length_check$lengths > threshold_miss_hrs), times = na_length_check$lengths)
     rl <- dfa[, i] %>% unlist %>% rle()
     dfa[maybeNA, i] <- NA
-    return(rl)
-    
-    }
+    defsNA <- is.na(ori_2[, i])
+    dfa[defsNA, i] <- NA
+    run_lengths[[i]] <- rl
+  }
+
 run_lengths %>% lapply(., `[[`, 1) %>%
     unlist -> sequences
 
@@ -259,7 +269,6 @@ $$\text{where } \quad \mu_{\text{Sensor}, \text{Month}, \text{DayType}, \text{Ti
 ```{r alg_glm}
 models <- list()
 fitted_data <- list()
-used_sensors <- list()
 dfa2 <- dfa
 p <- progress_estimated(length(unique(ped_data$Sensor)))
 for(i in small_miss_sensors){
@@ -370,13 +379,18 @@ In order to use a mixture of the patterns from two different sensors, we need to
 
 ## Imputation Results  
 
-For the purposes of evaluating the imputation method at a location with a small proportion of missing values, we will first look at the counts from Southern Cross Station. Firstly, we evaluate the goodness of fit of the predictions made within the training period (01/01/2014 to 31/12/2016).
+Firstly, we evaluate the initial model used to impute:
+$$\text{where } \quad \mu_{\text{Sensor}, \text{HDay}, \text{Time}} \sim \text{Time}\times \text{HDay} \tag{1}$$
+
+Note, this is also before the adjustments made to treat suspiciously long sequences of 0 values as `NA`. 
+
+For the purposes of evaluating the imputation method at a location with a small proportion of missing values, we will first look at the counts from Southern Cross Station. At this sensor, the proportion of missing values (adjusted) is `r round(na_prop["Southern Cross Station"]*100,2)`Firstly, we evaluate the goodness of fit of the predictions made within the training period (01/01/2014 to 31/12/2016).
 
 ```{r}
 ggplot(data = NULL, aes(x = original_df %>% 
              filter(Date_Time < "2017-01-01") %>%
              .[, "Southern Cross Station"],
-           y = fitted_data$`Southern Cross Station`)) +
+           y = fitted_base$`Southern Cross Station`)) +
            geom_point(alpha = 0.05) +
            geom_abline(aes(slope = 1, intercept = 0),
                        colour = brewer.pal(3, 'Dark2')[1],
@@ -395,6 +409,41 @@ ggplot(data = NULL, aes(x = original_df %>%
 \end{center}
 
 Visually, we can see that the fitted values are good estimates as the relationship between the actuals vs fitted is very close to 1:1. This is seen when we perform a least squares estimate of $\widehat{Fitted}_t = \hat{\beta}_0 + \hat{\beta}_1 Actual_t$, and the estimated $\hat{\beta}_0$ is close to 0 and $\hat{\beta}_1$ is close to 1. 
+
+Here we see that the GLM model with only time and date based variables work well for fitting small periods of missing data.  
+
+However, if we try to use this same model specification at sensor locations with large proportions of missing values, the fit is poor. We use the sensor at Australia on Collins to 
+```{r}
+options(na.action = na.omit)
+ggplot(data = NULL, aes(x = original_df[-(is.na(original_df$`Australia on Collins`)), ] %>% 
+             filter(Date_Time < "2017-01-01") %>%
+             .[, "Australia on Collins"],
+           y = fitted_base$`Australia on Collins`[-(is.na(original_df$`Australia on Collins`))])) +
+           geom_point(alpha = 0.05) +
+           geom_abline(aes(slope = 1, intercept = 0),
+                       colour = brewer.pal(3, 'Dark2')[1],
+                       alpha = 0.7, size = 1.5,) +
+           geom_smooth(method = "lm", size = 1.5, alpha = 0.7, 
+                       colour = brewer.pal(3, 'Dark2')[2]) +
+           theme_minimal() + theme(aspect.ratio = 1) +
+           scale_x_continuous(limits = c(0, 4000)) +
+           scale_y_continuous(limits = c(0, 4000)) +
+           xlab("Actual Pedestrian Count") +
+           ylab("Predicted Pedestrian Count") +
+           ggtitle("Actual against Predicted Counts at Australia on Collins")
+           
+```
+We can see that the model is heavily biased by the false 0 values, causing the predicted values to be underestimate (slope of the fitted line is $<1$). 
+
+
+
+
+
+
+
+
+
+
 
 Focusing on the date 04/07/2014, which has 3 hours of missing data:
 ```{r}
@@ -417,5 +466,3 @@ ggplot(original_df %>%  filter(Date_Time < "2014-07-06 00:00:00",
 \begin{center}
 \textbf{Figure }:  A plot of the pedestrian counts at Southern Cross Station. The black line is the observed counts, where the red line is the imputed counts.  
 \end{center}
-
-Here we see that the GLM model with only time and date based variables work well for fitting small periods of missing data. 
