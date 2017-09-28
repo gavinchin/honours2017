@@ -27,6 +27,8 @@ if(file.exists("../data/ped_df.csv")){
   ped_data$X1 <- NULL
   }
 
+ ## ped_data <- read_csv("http://209.148.91.227/files/ped_df_28sep17.csv")
+
 ## update data
 last_df_date <- ifelse(file.exists("../data/ped_df.csv"),
                         ped_data$Date %>% sort() %>%
