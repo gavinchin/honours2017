@@ -107,7 +107,7 @@ class: center
 
 ---
 class: middle, center
-## Missing Data
+# Missing Data
 &lt;img src="final_files/figure-html/unnamed-chunk-6-1.png" width="864" /&gt;
 
 - Some small and large periods of missing data
@@ -146,7 +146,7 @@ class: middle
 
 ---
 
-## Step 2: Fit models with "small" proportion of missing values
+## Step 2a: Fit models at sensors with "small" proportion of missing values
 
 At each sensor location with small proportion of missing values, we estimate a generalised linear model with:
 `$$\mu_{\text{Sensor}, \text{Month}, \text{DayType}, \text{Time}} \sim \text{Month} + \text{Time}\times \text{DayType}$$`
@@ -158,13 +158,27 @@ and a quaispoisson error distribution.
 
 ---
 
-## Step 2: Replacing missing values with imputed values
+## Step 2b: Replacing missing values with imputed values
 
 - Need to fill the missing data at the sensors with small proportions of missing values first
   * The imputation models at sensors with large proportions of missing values are based on neighbouring sensors
   * Requires complete data at neighbours to work properly
 
 &lt;img src="final_files/figure-html/unnamed-chunk-9-1.png" width="720" /&gt;
+
+---
+class: middle
+## Step 2c: Fit models at sensors with "large" proportion of missing values
+
+
+
+- Need to use complete data from neighbouring sensors
+  * Use data from imputation in previous step
+- Neighbour defined as geographical neighbours for simplicity
+  * Find two closest sensors by great-circle (haversine) distance
+---
+class: center, middle
+&lt;img src="final_files/figure-html/unnamed-chunk-11-1.png" width="720" /&gt;
     </textarea>
 <script src="https://remarkjs.com/downloads/remark-latest.min.js"></script>
 <script>var slideshow = remark.create({

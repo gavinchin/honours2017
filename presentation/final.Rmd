@@ -176,7 +176,7 @@ grid.arrange(p2, p1, p3, nrow = 3, ncol = 1)
 
 ---
 class: middle, center
-## Missing Data
+# Missing Data
 ```{r, echo = FALSE, fig.retina=2, fig.width= 12, message=FALSE, warning=FALSE, cache = TRUE}
 miss_plot_dat <- ped_data %>% filter(Date_Time > "2014-06-01",
                                      Date_Time < "2015-06-01") %>%
@@ -406,7 +406,7 @@ ggmap(melb2) + geom_point(aes(x = lons, y = lats, colour = cl),
 
 ---
 
-## Step 2: Fit models with "small" proportion of missing values
+## Step 2a: Fit models at sensors with "small" proportion of missing values
 
 At each sensor location with small proportion of missing values, we estimate a generalised linear model with:
 $$\mu_{\text{Sensor}, \text{Month}, \text{DayType}, \text{Time}} \sim \text{Month} + \text{Time}\times \text{DayType}$$
@@ -418,13 +418,13 @@ and a quaispoisson error distribution.
 
 ---
 
-## Step 2: Replacing missing values with imputed values
+## Step 2b: Replacing missing values with imputed values
 
 - Need to fill the missing data at the sensors with small proportions of missing values first
   * The imputation models at sensors with large proportions of missing values are based on neighbouring sensors
   * Requires complete data at neighbours to work properly
 
-```{r, echo = FALSE, fig.retina = 3, fig.width = 10, fig.height = 4}
+```{r, echo=FALSE, fig.height=4, fig.retina=3, fig.width=10, message=FALSE, warning=FALSE}
 fit_dat_plot <- data.frame(Date_Time = dfa2$Date_Time,
                            fit_ = dfa2$`Flagstaff Station`) %>%
                   filter(Date_Time < "2014-07-05 15:00:00",
@@ -434,6 +434,8 @@ fit_dat_plot <- data.frame(Date_Time = dfa2$Date_Time,
 p1 <-  ggplot(original_df %>%  filter(Date_Time < "2014-07-05 15:00:00",
                                  Date_Time > "2014-07-03 23:00:00")) +
         geom_line(aes(x = Date_Time, y = `Flagstaff Station`),
+                  size  = 1.5) +
+        geom_point(aes(x = Date_Time, y = `Flagstaff Station`),
                   size  = 2) +
         theme_minimal() + xlab("Time") +
         ylab("Pedestrian Counts") +
@@ -441,13 +443,70 @@ p1 <-  ggplot(original_df %>%  filter(Date_Time < "2014-07-05 15:00:00",
 p2 <-  ggplot(original_df %>%  filter(Date_Time < "2014-07-05 15:00:00",
                                  Date_Time > "2014-07-03 23:00:00")) +
         geom_line(aes(x = Date_Time, y = fit_dat_plot),
-                  colour = plasma(1, begin = .335, end = 0),
-                  size = 2) +
+                  colour = plasma(1, begin = .375, end = 0),
+                  size = 1.5) +
         geom_line(aes(x = Date_Time, y = `Flagstaff Station`),
+                  size  = 1.5) +
+        geom_point(aes(x = Date_Time, y = `Flagstaff Station`),
                   size  = 2) +
         theme_minimal() + xlab("Time") +
         ylab("Pedestrian Counts") +
         ggtitle("Flagstaff Station with imputed values")
 grid.arrange(p1, p2, nrow = 1)
 ```
+
+---
+class: middle
+## Step 2c: Fit models at sensors with "large" proportion of missing values
+
+```{r, echo = FALSE, fig.retina = 3, message=FALSE, warning=F}
+rownames(loc) <- loc$ids
+melb3 <- get_map(location = c(loc["Southbank",]$lons,
+                              loc["Southbank",]$lats),
+                 zoom = 17, maptype = "roadmap")
+
+sens_lines_lon <- as.numeric(c(loc["Flinders St Station Underpass",]$lons,
+                loc["Southbank",]$lons,
+                loc["Sandridge Bridge",]$lons))
+
+sens_lines_lat <- as.numeric(c(loc["Flinders St Station Underpass",]$lats,
+                loc["Southbank",]$lats,
+                loc["Sandridge Bridge",]$lats))
+
+sens_lines <- data.frame(lon = sens_lines_lon,
+                         lat = sens_lines_lat)
+```
+
+- Need to use complete data from neighbouring sensors
+  * Use data from imputation in previous step
+- Neighbour defined as geographical neighbours for simplicity
+  * Find two closest sensors by great-circle (haversine) distance
+---
+class: center, middle
+```{r, echo = FALSE, fig.retina = 6, message=FALSE, warning=F, fig.width=10}
+ggmap(melb3) + geom_line(aes(x = lon, y = lat),
+                        data = sens_lines, size = 2.5,
+                        colour = viridis(3)[2], alpha = 0.5) +
+               geom_point(aes(x = lons, y = lats, colour = cl),
+                          size = 12,
+                          data = loc) +
+               scale_colour_viridis(discrete = TRUE,
+                                    name = "Sensor NA Prop.",
+                                    begin = 0.5, end = 0) +
+               geom_point(aes(x = loc["Southbank",]$lons,
+                              y = loc["Southbank",]$lats),
+                          size = 26, colour = viridis(3)[2]) +
+               geom_text(aes(label = ids, x = lons, y = lats),
+                         data = loc, size = 8,
+                         nudge_y = -0.0002) +
+              xlab(NULL) + ylab(NULL) +
+              scale_y_continuous(limits = c(-37.8215, -37.818)) +
+              theme(plot.title = element_text(hjust = 0.5),
+                    plot.caption = element_text(hjust = 0.5),
+                    axis.text.x = element_blank(),
+                    axis.text.y = element_blank(),
+                    axis.ticks = element_blank(),
+                    legend.position = "right")
+```
+
 
