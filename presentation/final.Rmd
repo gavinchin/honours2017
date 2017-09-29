@@ -1,0 +1,210 @@
+---
+title: "Modelling the City of Melbourne Pedestrian Data"
+subtitle: "Thesis Presentation"
+author: "Gavin Chin, supervised by Di Cook"
+date: "2 October 2017"
+output:
+  xaringan::moon_reader:
+    lib_dir: libs
+    css: ["default", "myremark.css"]
+    self_contained: false
+    nature:
+      highlightStyle: github
+      highlightLines: true
+      countIncrementalSlides: false
+---
+
+```{r setup, include=FALSE, echo = FALSE, warning=FALSE, message=FALSE}
+options(htmltools.dir.version = FALSE,
+        scipen = 100, cache = TRUE)
+library(tidyverse)
+library(ggmap)
+library(knitr)
+library(lubridate)
+library(gridExtra)
+library(viridis)
+library(pander)
+set.seed(13131313)
+## quicker data source compared to rwalkr::walk_melb() 
+## ped_data <- read_csv("http://209.148.91.227/files/ped_df_28sep17.csv")
+
+  ped_data <- read_csv("../data/ped_df.csv")
+      
+  ped_loc <- read_csv("../data/Pedestrian_sensor_locations.csv")
+  
+  melb <- get_map(location=c(mean(range(ped_loc$Longitude)),
+                               mean(range(ped_loc$Latitude))),
+                                zoom=14)
+```
+
+```{r, include = FALSE, echo = FALSE, warning=FALSE, message=FALSE}
+ped_data$Sensor_ID <- ped_data$Sensor
+ped_data$Hourly_Counts <- ped_data$Count
+ped_data$Date_Time <- ymd_h(paste(ped_data$Date, ped_data$Time, sep = " "))
+ped_data$Day <- lubridate::wday(ped_data$Date_Time, label = TRUE, abbr = F)
+ped_data$Month <- lubridate::month(ped_data$Date_Time, label = TRUE, abbr = F)
+ped_data$Time <- as.factor(ped_data$Time)
+ped_data$WkYr <- paste(week(ped_data$Date_Time), year(ped_data$Date_Time), sep = "-")
+
+## long to wide
+ped_data %>% select(Sensor_ID, Count, Date_Time, Time, Month, Day) %>% 
+  spread(Sensor_ID, Count) -> dfa
+
+pub_hday14 <- read.csv("http://data.gov.au/dataset/b1bc6077-dadd-4f61-9f8c-002ab2cdff10/resource/56a5ee91-8e94-416e-81f7-3fe626958f7e/download/australianpublicholidays-201415.csv---australianpublicholidays.csv.csv")
+pub_hday15 <- read.csv("http://data.gov.au/dataset/b1bc6077-dadd-4f61-9f8c-002ab2cdff10/resource/13ca6df3-f6c9-42a1-bb20-6e2c12fe9d94/download/australianpublicholidays-201516.csv")
+pub_hday16 <- read.csv("http://data.gov.au/dataset/b1bc6077-dadd-4f61-9f8c-002ab2cdff10/resource/a24ecaf2-044a-4e66-989c-eacc81ded62f/download/australianpublicholidays-201617.csv")
+pub_hdays <- rbind(pub_hday14, pub_hday15, pub_hday16)
+
+pub_hdays$Date <- ymd(pub_hdays$Date)
+pub_hdays$Month <- lubridate::month(pub_hdays$Date, label = TRUE, abbr = F)
+pub_hdays$VIC <- 0
+pub_hdays$VIC[grep(glob2rx("*VIC*"), pub_hdays$`Applicable.To`)] <- 1
+pub_hdays$VIC[grep("NAT", pub_hdays$`Applicable.To`)] <- 1
+
+
+dfa <- dfa %>% mutate(IsHDay = (date(Date_Time) %in% pub_hdays$Date[pub_hdays$VIC == 1]))
+
+dfa$DayType <-       ifelse(dfa$Day == "Sunday", "Sunday",
+                     ifelse(dfa$Day == "Saturday", "Saturday",
+                    ifelse(dfa$Day == "Monday", "Monday",
+                     ifelse(dfa$Day == "Friday", "Friday",
+                                  "Midweek"))))
+dfa$DayType[dfa$IsHDay == 1] <- "Holiday"
+dfa$HDay <- ifelse(dfa$IsHDay == 1, "Holiday", dfa$Day)
+dfa <- dfa %>% mutate(WkYr = paste(week(Date_Time), year(Date_Time)), sep = "-")
+original_df <- dfa
+dfa <- filter(dfa, Date_Time < "2017-01-01")
+ori_2 <- filter(original_df, Date_Time < "2017-01-01")
+```
+
+
+class: center
+
+# Introduction
+
+The City of Melbourne has an Open Data Platform which makes council data available to the public  
+
+This project will focus on the pedestrian sensor data
+
+```{r, echo = FALSE, fig.height=5, fig.retina = 3}
+ggmap(melb) + geom_point(aes(x = Longitude, y = Latitude),
+                         data = ped_loc, colour = "red", alpha = 0.7) +
+              labs(title = "Melbourne Pedestrian Sensor Locations") +
+              xlab(NULL) + ylab(NULL) +
+              theme(plot.title = element_text(hjust = 0.5),
+                    plot.caption = element_text(hjust = 0.5),
+                    axis.text.x = element_blank(),
+                    axis.text.y = element_blank(),
+                    axis.ticks = element_blank())
+```
+
+
+---
+class: center
+
+## How is the data collected?
+
+The City of Melbourne has `r nrow(ped_loc)` sensors installed around Melbourne's CBD  
+- These sensors are positioned under an awning or street pole, and count the number of people passing each hour
+
+![figure of pedestrian sensors](../img/ped_sensors.png)
+
+_source: http://www.pedestrian.melbourne.vic.gov.au/ _
+
+---
+class: middle
+## Accessing the data
+
+- The data is available as a `.csv` at https://data.melbourne.vic.gov.au/, and is updated monthly
+- Alternatively, the data is also available as daily data from http://www.pedestrian.melbourne.vic.gov.au/
+  * The `rwalkr` R package by Earo Wang provides an API to access the data from both sources easily in R in a tidy format
+
+- Both sources of data provide the same counts data, but have different forms
+
+We use the daily data sourced from `pedestrian.melbourne.vic.gov.au` rather than the data available at the Open Data Platform as missing values are explicit
+
+---
+
+## Format of the data
+#### Variables available:
+- Time and Date
+- Sensor ID/Location
+- Hourly Pedestrian Count
+
+```{r, echo=FALSE}
+ped_data %>% as.tibble
+```
+
+---
+
+# Why do we want to model pedestrian traffic?
+
+### Being able to predict how many people pass through a certain location can be used by the government sector as well as the private sector  
+
+#### Examples ways it can be used: 
+
+- Government example uses:  
+  * Infrastructure planning
+  * Security planning
+- Private example uses:
+  * Marketing campaign planning
+  * Resource management
+  * Investment planning
+---
+class: center
+## The Problem: Prediction of pedestrian traffic
+```{r, echo=FALSE, fig.retina = 3, fig.height=6, fig.width= 10}
+p1 <- ggplot(dfa %>% filter(Date_Time > "2016-07-12 00:00:00",
+                            Date_Time < "2016-07-25 00:00:00")) +
+        geom_line(aes(x = Date_Time, y = `Flagstaff Station`)) +
+        scale_y_continuous(limits = c(0, 7000))
+p2 <- ggplot(dfa %>% filter(Date_Time > "2016-07-12 00:00:00",
+                            Date_Time < "2016-07-25 00:00:00")) +
+        geom_line(aes(x = Date_Time, y = `Southbank`)) +
+        scale_y_continuous(limits = c(0, 7000))
+p3 <- ggplot(dfa %>% filter(Date_Time > "2016-07-12 00:00:00",
+                            Date_Time < "2016-07-25 00:00:00")) +
+        geom_line(aes(x = Date_Time, y = `State Library`)) +
+        scale_y_continuous(limits = c(0, 7000))
+grid.arrange(p2, p1, p3, nrow = 3, ncol = 1)
+```
+
+--
+
+#### Different locations have different counts and patterns
+
+---
+class: middle, center
+## Missing Data
+```{r, echo = FALSE, fig.retina=2, fig.width= 12, message=FALSE, warning=FALSE}
+miss_plot_dat <- ped_data %>% filter(Date_Time > "2014-06-01",
+                                     Date_Time < "2015-06-01") %>%
+  group_by(WkYr, Sensor_ID) %>%
+  summarise(Weekly_Count = sum(Hourly_Counts))
+
+miss_plot_dat2 <- ped_data %>% group_by(Date) %>%
+  filter(Date > "2014-06-01", Date < "2015-06-01") %>% left_join(miss_plot_dat)
+
+random_sensors <- sample(unique(ped_data$Sensor_ID), 10, replace = FALSE)
+
+ggplot(miss_plot_dat2 %>% filter(Sensor_ID %in% random_sensors)) +
+  geom_point(aes(y = Sensor_ID, x = Date, colour = Weekly_Count), shape = 15, size = 8, alpha = 0.15) +
+  ylab("Location") + theme_minimal() + theme(legend.position = "bottom") +
+  scale_color_viridis(option = "magma", guide = guide_colorbar(barwidth = 10)) +
+  ggtitle("Weekly Counts for at various locations")
+  
+```
+
+---
+
+
+
+
+
+
+
+
+
+
+
+
