@@ -373,6 +373,7 @@ class: middle
   * if "small", use GLM with `Hourly_Counts` as response variable and time and date based variables as predictors
   * if "large", use GLM with `Hourly_Counts` as response variable and neighbouring sensor counts as predictors
 - **Step 3:** Replace missing values with imputed values  
+
 ---
 ## Step 1: Calculating proportion of missing values
 - Need to first fix potential false zero-count values
@@ -380,7 +381,24 @@ class: middle
   * Include a check for long periods with zero count, and replace with `NA` if too long
 - Classify sensors as "small" or "large" proportion of missing values with a threshold proportion
   * We used 10% as the threshold proportion
-```{r, fig.retina = 4, echo = FALSE, message = FALSE, fig.height = 4, fig.align = 'center', warning=FALSE}
+
+```{r, echo = FALSE, fig.retina = 3, fig.height = 3, fig.align='center'}
+ggplot() + geom_histogram(aes(x = na_prop*100), bins = 12) +
+          xlab("Percentage of Missing Values (%)") +
+          ylab("Number of Sensors") + theme_minimal() +
+          geom_vline(xintercept = 10, size = 2,
+                     colour = 'red') +
+          geom_text(aes(label = "10% Threshold", x = 10, y = 1),
+                    colour = "white") +
+          ggtitle("Histogram of Proportions of Missing Values")
+```
+
+
+---
+class: middle, center
+## Step 1: Classification of sensors by "small" and "large" proportion of  missing values
+
+```{r, fig.retina = 4, echo = FALSE, message = FALSE, fig.width = 11, fig.align = 'center', warning=FALSE}
 loc <- loc %>% mutate(cl = ifelse((loc$ids %in% small_miss_sensors),
                                   "Small", "Large"))
 melb2 <- get_map(location = c(mean(range(ped_loc$Longitude)),
@@ -389,7 +407,7 @@ melb2 <- get_map(location = c(mean(range(ped_loc$Longitude)),
 perf_loc <- c(144.937, -37.826, 144.977, -37.794)
 
 ggmap(melb2) + geom_point(aes(x = lons, y = lats, colour = cl),
-                         data = loc, alpha = .6, size = 4, shape = 15) +
+                         data = loc, alpha = .6, size = 8, shape = 15) +
               labs(title = "Melbourne Pedestrian Sensor Locations") +
               xlab(NULL) + ylab(NULL) +
               scale_color_viridis(name = "Proportion of missing values",

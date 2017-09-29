@@ -135,6 +135,7 @@ class: middle
   * if "small", use GLM with `Hourly_Counts` as response variable and time and date based variables as predictors
   * if "large", use GLM with `Hourly_Counts` as response variable and neighbouring sensor counts as predictors
 - **Step 3:** Replace missing values with imputed values  
+
 ---
 ## Step 1: Calculating proportion of missing values
 - Need to first fix potential false zero-count values
@@ -142,7 +143,15 @@ class: middle
   * Include a check for long periods with zero count, and replace with `NA` if too long
 - Classify sensors as "small" or "large" proportion of missing values with a threshold proportion
   * We used 10% as the threshold proportion
+
 &lt;img src="final_files/figure-html/unnamed-chunk-8-1.png" width="504" style="display: block; margin: auto;" /&gt;
+
+
+---
+class: middle, center
+## Step 1: Classification of sensors by "small" and "large" proportion of  missing values
+
+&lt;img src="final_files/figure-html/unnamed-chunk-9-1.png" width="792" style="display: block; margin: auto;" /&gt;
 
 ---
 
@@ -164,7 +173,7 @@ and a quaispoisson error distribution.
   * The imputation models at sensors with large proportions of missing values are based on neighbouring sensors
   * Requires complete data at neighbours to work properly
 
-&lt;img src="final_files/figure-html/unnamed-chunk-9-1.png" width="720" /&gt;
+&lt;img src="final_files/figure-html/unnamed-chunk-10-1.png" width="720" /&gt;
 
 ---
 class: middle
@@ -178,7 +187,7 @@ class: middle
   * Find two closest sensors by great-circle (haversine) distance
 ---
 class: center, middle
-&lt;img src="final_files/figure-html/unnamed-chunk-11-1.png" width="720" /&gt;
+&lt;img src="final_files/figure-html/unnamed-chunk-12-1.png" width="720" /&gt;
     </textarea>
 <script src="https://remarkjs.com/downloads/remark-latest.min.js"></script>
 <script>var slideshow = remark.create({
