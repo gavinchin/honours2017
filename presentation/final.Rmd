@@ -24,6 +24,8 @@ library(lubridate)
 library(gridExtra)
 library(viridis)
 library(pander)
+library(png)
+library(grid)
 set.seed(13131313)
 ## quicker data source compared to rwalkr::walk_melb() 
 ## ped_data <- read_csv("http://209.148.91.227/files/ped_df_28sep17.csv")
@@ -37,7 +39,67 @@ set.seed(13131313)
                                 zoom=14)
 ```
 
-```{r, include = FALSE, echo = FALSE, warning=FALSE, message=FALSE}
+class: center
+
+# Introduction
+
+The City of Melbourne has an Open Data Platform which makes council data available to the public  
+
+This project will focus on the pedestrian sensor data
+
+```{r, echo = FALSE, fig.height=5, fig.retina = 3}
+ggmap(melb) + geom_point(aes(x = Longitude, y = Latitude),
+                         data = ped_loc, colour = "red", alpha = 0.7) +
+              labs(title = "Melbourne Pedestrian Sensor Locations") +
+              xlab(NULL) + ylab(NULL) +
+              theme(plot.title = element_text(hjust = 0.5),
+                    plot.caption = element_text(hjust = 0.5),
+                    axis.text.x = element_blank(),
+                    axis.text.y = element_blank(),
+                    axis.ticks = element_blank())
+```
+
+
+---
+class: middle
+
+## How is the data collected?
+
+The City of Melbourne has `r nrow(ped_loc)` sensors installed around Melbourne's CBD  
+- These sensors are positioned under an awning or street pole, and count the number of people passing each hour
+
+```{r, echo = FALSE, fig.align= 'center', fig.retina = 3, out.height= "369px", out.width = "852px"}
+include_graphics("../img/ped_sensors.png")
+```
+
+_source: http://www.pedestrian.melbourne.vic.gov.au/_
+
+---
+class: middle
+## Accessing the data
+
+- The data is available as a `.csv` at https://data.melbourne.vic.gov.au/, and is updated monthly
+- Alternatively, the data is also available as daily data from http://www.pedestrian.melbourne.vic.gov.au/
+  * The `rwalkr` R package by Earo Wang provides an API to access the data from both sources easily in R in a tidy format
+
+- Both sources of data provide the same counts data, but have different forms
+
+We use the daily data sourced from `pedestrian.melbourne.vic.gov.au` rather than the data available at the Open Data Platform as missing values are explicit
+
+---
+
+## Format of the data
+#### Variables available:
+- Time and Date
+- Sensor ID/Location
+- Hourly Pedestrian Count
+
+```{r, echo=FALSE}
+ped_data %>% as.tibble
+```
+
+---
+```{r, include = FALSE, echo = FALSE, warning=FALSE, message=FALSE, cache = TRUE}
 ped_data$Sensor_ID <- ped_data$Sensor
 ped_data$Hourly_Counts <- ped_data$Count
 ped_data$Date_Time <- ymd_h(paste(ped_data$Date, ped_data$Time, sep = " "))
@@ -76,67 +138,6 @@ original_df <- dfa
 dfa <- filter(dfa, Date_Time < "2017-01-01")
 ori_2 <- filter(original_df, Date_Time < "2017-01-01")
 ```
-
-
-class: center
-
-# Introduction
-
-The City of Melbourne has an Open Data Platform which makes council data available to the public  
-
-This project will focus on the pedestrian sensor data
-
-```{r, echo = FALSE, fig.height=5, fig.retina = 3}
-ggmap(melb) + geom_point(aes(x = Longitude, y = Latitude),
-                         data = ped_loc, colour = "red", alpha = 0.7) +
-              labs(title = "Melbourne Pedestrian Sensor Locations") +
-              xlab(NULL) + ylab(NULL) +
-              theme(plot.title = element_text(hjust = 0.5),
-                    plot.caption = element_text(hjust = 0.5),
-                    axis.text.x = element_blank(),
-                    axis.text.y = element_blank(),
-                    axis.ticks = element_blank())
-```
-
-
----
-class: center
-
-## How is the data collected?
-
-The City of Melbourne has `r nrow(ped_loc)` sensors installed around Melbourne's CBD  
-- These sensors are positioned under an awning or street pole, and count the number of people passing each hour
-
-![figure of pedestrian sensors](../img/ped_sensors.png)
-
-_source: http://www.pedestrian.melbourne.vic.gov.au/ _
-
----
-class: middle
-## Accessing the data
-
-- The data is available as a `.csv` at https://data.melbourne.vic.gov.au/, and is updated monthly
-- Alternatively, the data is also available as daily data from http://www.pedestrian.melbourne.vic.gov.au/
-  * The `rwalkr` R package by Earo Wang provides an API to access the data from both sources easily in R in a tidy format
-
-- Both sources of data provide the same counts data, but have different forms
-
-We use the daily data sourced from `pedestrian.melbourne.vic.gov.au` rather than the data available at the Open Data Platform as missing values are explicit
-
----
-
-## Format of the data
-#### Variables available:
-- Time and Date
-- Sensor ID/Location
-- Hourly Pedestrian Count
-
-```{r, echo=FALSE}
-ped_data %>% as.tibble
-```
-
----
-
 # Why do we want to model pedestrian traffic?
 
 ### Being able to predict how many people pass through a certain location can be used by the government sector as well as the private sector  
@@ -176,7 +177,7 @@ grid.arrange(p2, p1, p3, nrow = 3, ncol = 1)
 ---
 class: middle, center
 ## Missing Data
-```{r, echo = FALSE, fig.retina=2, fig.width= 12, message=FALSE, warning=FALSE}
+```{r, echo = FALSE, fig.retina=2, fig.width= 12, message=FALSE, warning=FALSE, cache = TRUE}
 miss_plot_dat <- ped_data %>% filter(Date_Time > "2014-06-01",
                                      Date_Time < "2015-06-01") %>%
   group_by(WkYr, Sensor_ID) %>%
@@ -185,26 +186,193 @@ miss_plot_dat <- ped_data %>% filter(Date_Time > "2014-06-01",
 miss_plot_dat2 <- ped_data %>% group_by(Date) %>%
   filter(Date > "2014-06-01", Date < "2015-06-01") %>% left_join(miss_plot_dat)
 
-random_sensors <- sample(unique(ped_data$Sensor_ID), 10, replace = FALSE)
+random_sensors <- c("Collins Place (North)","Lygon St (West)","Spring St-Lonsdale St (South)","Flinders St-Spring St (West)","Convention/Exhibition Centre","Sandridge Bridge")
 
-ggplot(miss_plot_dat2 %>% filter(Sensor_ID %in% random_sensors)) +
-  geom_point(aes(y = Sensor_ID, x = Date, colour = Weekly_Count), shape = 15, size = 8, alpha = 0.15) +
+mdf <- miss_plot_dat2 %>% filter(Sensor_ID %in% random_sensors)
+
+ggplot(mdf) +
+  geom_point(aes(y = Sensor_ID, x = Date, colour = Weekly_Count), shape = 15, size = 15, alpha = 0.15) +
   ylab("Location") + theme_minimal() + theme(legend.position = "bottom") +
   scale_color_viridis(option = "magma", guide = guide_colorbar(barwidth = 10)) +
   ggtitle("Weekly Counts for at various locations")
   
 ```
 
+- Some small and large periods of missing data
+- We need to impute these values before building a predictive model
 ---
 
+## Imputation of missing values
 
+- A simple approach of using a single model specification at all locations did not work well
+  * Some sensors had large proportions of missing data, particularly pre-2015
+- Need to use different model for sensors with large proportion of missing values and those with a small proportion of missing values
 
+```{r model_alg, echo = FALSE, warning=FALSE, message=FALSE, cache = TRUE}
+n_obs <- nrow(dfa)
+threshold <- 0.1
+threshold_miss_hrs <- 50
 
+run_lengths <- list()
 
+### code from:
+## http://www.win-vector.com/blog/2014/05/trimming-the-fat-from-glm-models-in-r/
+stripGlmLR = function(cm) {
+  cm$y = c()
+  cm$model = c()
+  
+  cm$residuals = c()
+  cm$fitted.values = c()
+  cm$effects = c()
+  cm$qr$qr = c()  
+  cm$linear.predictors = c()
+  cm$weights = c()
+  cm$prior.weights = c()
+  cm$data = c()
+  
+  
+  cm$family$variance = c()
+  cm$family$dev.resids = c()
+  cm$family$aic = c()
+  cm$family$validmu = c()
+  cm$family$simulate = c()
+  attr(cm$terms,".Environment") = c()
+  attr(cm$formula,".Environment") = c()
+  
+  cm
+}
 
+for(i in unique(ped_data$Sensor)){
+    dfa[is.na(dfa[, i]), i] <- 0
+    na_length_check <- rle(as.numeric(unlist(dfa[,i])))
+    maybeNA <- rep((na_length_check$lengths > threshold_miss_hrs),
+                   times = na_length_check$lengths)
+    rl <- dfa[, i] %>% unlist %>% rle()
+    dfa[maybeNA, i] <- NA
+    defsNA <- is.na(ori_2[, i])
+    dfa[defsNA, i] <- NA
+    run_lengths[[i]] <- rl
+}
 
+na_prop <- numeric()
 
+for (i in unique(ped_data$Sensor)){
+  na_prop[i] <- sum(is.na(dfa[, i])) / n_obs
+}
 
+large_miss_sensors <- names(na_prop[na_prop > threshold])
+small_miss_sensors <- setdiff(names(na_prop), large_miss_sensors)
 
+models <- list()
+fitted_data <- list()
+dfa2 <- dfa
+for(i in small_miss_sensors){
+  options(na.action = na.omit)
+  sensor_df <- unlist(dfa[, i])
+  model <- glm(sensor_df ~  Month + DayType*Time,
+               family = 'quasipoisson', data = dfa)
+  models[[i]] <- (stripGlmLR(model))
+}
+
+  options(na.action = na.pass)
+for(i in small_miss_sensors){
+  ts_dat <- data.frame(Month = dfa$Month, DayType = dfa$DayType, Time = dfa$Time)
+  fitted_data[[i]] <- predict.glm(models[[i]],newdata = ts_dat, type = "response")
+}
+  options(na.action = na.omit)
+  for(i in small_miss_sensors){
+    dfa2[is.na(dfa[, i]), i] <- fitted_data[[i]][is.na(dfa[, i])]
+  }
+  
+  lats <- ped_loc$Latitude
+lons <- ped_loc$Longitude
+ids <- ped_loc$`Sensor Description`
+
+## name fix dictionary
+{
+ids[ids == "Flinders Street Station Underpass"] <- "Flinders St Station Underpass"
+ids[ids == "Flinders St-Spark La"] <- "Flinders St-Spark Lane"
+ids[ids == "Queen St (West)"] <-  "Queen Street (West)"
+ids[ids == "The Arts Centre"] <- "Vic Arts Centre"
+ids[ids == "Lonsdale St-Spring St (West)"] <- "Spring St-Lonsdale St (South)"
+ids[ids == "Lygon St (East)"] <- "Lygon Street (East)"
+ids[ids == "QV Market-Elizabeth St (West)"] <- "QV Market-Elizabeth (West)"
+ids[ids == "Melbourne Convention Exhibition Centre"] <- "Convention/Exhibition Centre"
+ids[ids == "St Kilda Rd-Alexandra Gardens"] <- "St. Kilda-Alexandra Gardens"
+}
+loc <- data.frame(lons, lats, ids)
+rownames(loc) <- ids
+
+# Calculates the geodesic distance between two points specified by radian latitude/longitude using the
+# Spherical Law of Cosines (slc)
+# source: https://www.r-bloggers.com/great-circle-distance-calculations-in-r/
+gcd.slc <- function(long1, lat1, long2, lat2) {
+  R <- 6371 # Earth mean radius [km]
+  d <- acos(sin(lat1)*sin(lat2) + cos(lat1)*cos(lat2) * cos(long2-long1)) * R
+  return(d) # Distance in km
+}
+
+for (i in large_miss_sensors){
+  # p$tick()$print()
+  sensor_dists <- numeric()
+  for (j in small_miss_sensors){
+      dists <- gcd.slc(loc[i,]$lons, loc[i,]$lats, loc[j,]$lons, loc[j,]$lats)
+      sensor_dists[j] <- dists
+  }
+  names(sensor_dists) <- small_miss_sensors
+  closest_sensor <- sensor_dists %>% sort %>%
+                    head(2) %>% names
+  close_df_scale <- dfa2[, closest_sensor[1]] %>% unlist %>% scale
+  close_df_scale2 <- dfa2[, closest_sensor[2]] %>% unlist %>% scale
+
+  sensor_df <- dfa2[, i] %>% unlist
+  
+  tr_dat <- data.frame(sensor_df, close_df_scale, close_df_scale2, Time = dfa$Time)
+  options(na.action = na.omit)
+  model <- glm(sensor_df ~ Time*close_df_scale + Time*close_df_scale2,
+               data = tr_dat, family = quasipoisson())
+  models[[i]] <- stripGlmLR(model)
+  
+  options(na.action = na.pass)
+  fitted_data[[i]] <- predict(model, newdata = tr_dat, type = "response")
+  options(na.action = na.omit)
+
+  dfa2[is.na(dfa[, i]), i] <- fitted_data[[i]][is.na(dfa[, i])]
+  
+}
+
+```
+
+```{r, echo = FALSE, fig.width = 7, fig.height = 4.5, fig.retina = 3, fig.align = 'center'}
+fit_dat_plot <- data.frame(Date_Time = dfa2$Date_Time,
+                           fit_ = dfa2$`Southern Cross Station`) %>%
+                  filter(Date_Time < "2014-07-06 00:00:00",
+                         Date_Time > "2014-07-04 12:00:00") %>%
+                        .$fit_
+
+ggplot(original_df %>%  filter(Date_Time < "2014-07-06 00:00:00",
+                               Date_Time > "2014-07-04 12:00:00")) +
+  geom_line(aes(x = Date_Time, y = fit_dat_plot), colour = 'red',
+            size = 2) +
+  geom_line(aes(x = Date_Time, y = `Southern Cross Station`),
+            size  = 2) +
+  theme_minimal() + xlab("Time") +
+  ylab("Pedestrian Counts") +
+  ggtitle("Pedestrian Counts at Southern Cross Station on 04/07/2014 - 05/07/2014")
+```
+
+---
+class: middle
+## Imputation Algorithm
+
+#### Needed to develop an algorithm to:
+
+- Find which sensors have a "large" proportion of missing values  
+- At each sensor location, run appropriate GLM model with quasipoisson error distribution for imputation  
+  * if "small", use GLM with `Hourly_Counts` as response variable and time and date based variables as predictors
+  * if "large", use GLM with `Hourly_Counts` as response variable and neighbouring sensor counts as predictors
+- Replace missing values with imputed values  
+
+---
 
 

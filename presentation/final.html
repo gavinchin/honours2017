@@ -1,0 +1,170 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <title>Modelling the City of Melbourne Pedestrian Data</title>
+    <meta charset="utf-8">
+    <meta name="author" content="Gavin Chin, supervised by Di Cook" />
+    <link href="libs/remark-css/example.css" rel="stylesheet" />
+    <link rel="stylesheet" href="myremark.css" type="text/css" />
+  </head>
+  <body>
+    <textarea id="source">
+class: center, middle, inverse, title-slide
+
+# Modelling the City of Melbourne Pedestrian Data
+## Thesis Presentation
+### Gavin Chin, supervised by Di Cook
+### 2 October 2017
+
+---
+
+
+
+
+class: center
+
+# Introduction
+
+The City of Melbourne has an Open Data Platform which makes council data available to the public  
+
+This project will focus on the pedestrian sensor data
+
+&lt;img src="final_files/figure-html/unnamed-chunk-1-1.png" width="504" /&gt;
+
+
+---
+class: middle
+
+## How is the data collected?
+
+The City of Melbourne has 43 sensors installed around Melbourne's CBD  
+- These sensors are positioned under an awning or street pole, and count the number of people passing each hour
+
+&lt;img src="../img/ped_sensors.png" width="852px" height="369px" style="display: block; margin: auto;" /&gt;
+
+_source: http://www.pedestrian.melbourne.vic.gov.au/_
+
+---
+class: middle
+## Accessing the data
+
+- The data is available as a `.csv` at https://data.melbourne.vic.gov.au/, and is updated monthly
+- Alternatively, the data is also available as daily data from http://www.pedestrian.melbourne.vic.gov.au/
+  * The `rwalkr` R package by Earo Wang provides an API to access the data from both sources easily in R in a tidy format
+
+- Both sources of data provide the same counts data, but have different forms
+
+We use the daily data sourced from `pedestrian.melbourne.vic.gov.au` rather than the data available at the Open Data Platform as missing values are explicit
+
+---
+
+## Format of the data
+#### Variables available:
+- Time and Date
+- Sensor ID/Location
+- Hourly Pedestrian Count
+
+
+```
+## # A tibble: 1,409,712 x 5
+##                        Sensor  Date_Time       Date  Time Count
+##                         &lt;chr&gt;     &lt;date&gt;     &lt;date&gt; &lt;int&gt; &lt;int&gt;
+##  1              State Library 2014-01-01 2014-01-01     0  1709
+##  2      Collins Place (South) 2014-01-01 2014-01-01     0   893
+##  3      Collins Place (North) 2014-01-01 2014-01-01     0   404
+##  4          Flagstaff Station 2014-01-01 2014-01-01     0   462
+##  5          Melbourne Central 2014-01-01 2014-01-01     0  3088
+##  6           Town Hall (West) 2014-01-01 2014-01-01     0  3227
+##  7 Bourke Street Mall (North) 2014-01-01 2014-01-01     0     0
+##  8 Bourke Street Mall (South) 2014-01-01 2014-01-01     0   936
+##  9       Australia on Collins 2014-01-01 2014-01-01     0   969
+## 10     Southern Cross Station 2014-01-01 2014-01-01     0   886
+## # ... with 1,409,702 more rows
+```
+
+---
+
+# Why do we want to model pedestrian traffic?
+
+### Being able to predict how many people pass through a certain location can be used by the government sector as well as the private sector  
+
+#### Examples ways it can be used: 
+
+- Government example uses:  
+  * Infrastructure planning
+  * Security planning
+- Private example uses:
+  * Marketing campaign planning
+  * Resource management
+  * Investment planning
+---
+class: center
+## The Problem: Prediction of pedestrian traffic
+&lt;img src="final_files/figure-html/unnamed-chunk-5-1.png" width="720" /&gt;
+
+--
+
+#### Different locations have different counts and patterns
+
+---
+class: middle, center
+## Missing Data
+&lt;img src="final_files/figure-html/unnamed-chunk-6-1.png" width="864" /&gt;
+
+- Some small and large periods of missing data
+- We need to impute these values before building a predictive model
+---
+
+## Imputation of missing values
+
+- A simple approach of using a single model specification at all locations did not work well
+  * Some sensors had large proportions of missing data, particularly pre-2015
+- Need to use different model for sensors with large proportion of missing values and those with a small proportion of missing values
+
+
+
+&lt;img src="final_files/figure-html/unnamed-chunk-7-1.png" width="504" style="display: block; margin: auto;" /&gt;
+
+---
+class: middle
+## Imputation Algorithm
+
+#### Needed to develop an algorithm to:
+
+- Find which sensors have a "large" proportion of missing values  
+- At each sensor location, run appropriate GLM model with quasipoisson error distribution for imputation  
+  * if "small", use GLM with `Hourly_Counts` as response variable and time and date based variables as predictors
+  * if "large", use GLM with `Hourly_Counts` as response variable and neighbouring sensor counts as predictors
+- Replace missing values with imputed values  
+
+---
+    </textarea>
+<script src="https://remarkjs.com/downloads/remark-latest.min.js"></script>
+<script>var slideshow = remark.create({
+"highlightStyle": "github",
+"highlightLines": true,
+"countIncrementalSlides": false
+});
+if (window.HTMLWidgets) slideshow.on('afterShowSlide', function (slide) {window.dispatchEvent(new Event('resize'));});
+(function() {var d = document, s = d.createElement("style"), r = d.querySelector(".remark-slide-scaler"); if (!r) return; s.type = "text/css"; s.innerHTML = "@page {size: " + r.style.width + " " + r.style.height +"; }"; d.head.appendChild(s);})();</script>
+
+<script type="text/x-mathjax-config">
+MathJax.Hub.Config({
+  tex2jax: {
+    skipTags: ['script', 'noscript', 'style', 'textarea', 'pre']
+  }
+});
+</script>
+<!-- dynamically load mathjax for compatibility with self-contained -->
+<script>
+(function () {
+  var script = document.createElement('script');
+  script.type = 'text/javascript';
+  script.src  = 'https://cdn.bootcss.com/mathjax/2.7.1/MathJax.js?config=TeX-MML-AM_CHTML';
+  if (location.protocol !== 'file:' && /^https?:/.test(script.src))
+    script.src  = script.src.replace(/^https?:/, '');
+  document.getElementsByTagName('head')[0].appendChild(script);
+})();
+</script>
+  </body>
+</html>
