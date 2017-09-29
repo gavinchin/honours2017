@@ -49,7 +49,8 @@ This project will focus on the pedestrian sensor data
 
 ```{r, echo = FALSE, fig.height=5, fig.retina = 3}
 ggmap(melb) + geom_point(aes(x = Longitude, y = Latitude),
-                         data = ped_loc, colour = "red", alpha = 0.7) +
+                         data = ped_loc, colour = "red",
+                         size = 4, alpha = 0.7, shape = 17) +
               labs(title = "Melbourne Pedestrian Sensor Locations") +
               xlab(NULL) + ylab(NULL) +
               theme(plot.title = element_text(hjust = 0.5),
@@ -351,7 +352,8 @@ fit_dat_plot <- data.frame(Date_Time = dfa2$Date_Time,
 
 ggplot(original_df %>%  filter(Date_Time < "2014-07-06 00:00:00",
                                Date_Time > "2014-07-04 12:00:00")) +
-  geom_line(aes(x = Date_Time, y = fit_dat_plot), colour = 'red',
+  geom_line(aes(x = Date_Time, y = fit_dat_plot),
+            colour = plasma(1, begin = .75, end = 0),
             size = 2) +
   geom_line(aes(x = Date_Time, y = `Southern Cross Station`),
             size  = 2) +
@@ -378,25 +380,28 @@ class: middle
   * Include a check for long periods with zero count, and replace with `NA` if too long
 - Classify sensors as "small" or "large" proportion of missing values with a threshold proportion
   * We used 10% as the threshold proportion
-```{r, fig.retina = 3, echo = FALSE, message = FALSE, fig.height = 4, fig.align = 'center'}
+```{r, fig.retina = 4, echo = FALSE, message = FALSE, fig.height = 4, fig.align = 'center', warning=FALSE}
 loc <- loc %>% mutate(cl = ifelse((loc$ids %in% small_miss_sensors),
                                   "Small", "Large"))
-melbbw <- get_map(location=c(mean(range(ped_loc$Longitude)),
+melb2 <- get_map(location = c(mean(range(ped_loc$Longitude)),
                             mean(range(ped_loc$Latitude))),
-                            zoom=14, source = "stamen", maptype = "toner")
+                            zoom=14, maptype = "satellite")
+perf_loc <- c(144.937, -37.826, 144.977, -37.794)
 
-ggmap(melbbw) + geom_point(aes(x = lons, y = lats, colour = cl),
+ggmap(melb2) + geom_point(aes(x = lons, y = lats, colour = cl),
                          data = loc, alpha = .6, size = 4, shape = 15) +
               labs(title = "Melbourne Pedestrian Sensor Locations") +
               xlab(NULL) + ylab(NULL) +
               scale_color_viridis(name = "Proportion of missing values",
-                                  discrete = TRUE) +
+                                  discrete = TRUE, option = "C") +
+              scale_x_continuous(limits = c(144.937, 144.977)) +
+              scale_y_continuous(limits = c(-37.83, -37.79)) +
               theme(plot.title = element_text(hjust = 0.5),
                     plot.caption = element_text(hjust = 0.5),
                     axis.text.x = element_blank(),
                     axis.text.y = element_blank(),
                     axis.ticks = element_blank(),
-                    legend.position = "bottom")
+                    legend.position = "right")
 ```
 
 ---
@@ -411,4 +416,38 @@ and a quaispoisson error distribution.
   * `DayType` is a factor level/categorical variable based on the day of the week and public holidays
   * `Time` is treated as a factor level, as it has a non-linear relationship with counts
 
+---
+
+## Step 2: Replacing missing values with imputed values
+
+- Need to fill the missing data at the sensors with small proportions of missing values first
+  * The imputation models at sensors with large proportions of missing values are based on neighbouring sensors
+  * Requires complete data at neighbours to work properly
+
+```{r, echo = FALSE, fig.retina = 3, fig.width = 10, fig.height = 4}
+fit_dat_plot <- data.frame(Date_Time = dfa2$Date_Time,
+                           fit_ = dfa2$`Flagstaff Station`) %>%
+                  filter(Date_Time < "2014-07-05 15:00:00",
+                         Date_Time > "2014-07-03 23:00:00") %>%
+                        .$fit_
+
+p1 <-  ggplot(original_df %>%  filter(Date_Time < "2014-07-05 15:00:00",
+                                 Date_Time > "2014-07-03 23:00:00")) +
+        geom_line(aes(x = Date_Time, y = `Flagstaff Station`),
+                  size  = 2) +
+        theme_minimal() + xlab("Time") +
+        ylab("Pedestrian Counts") +
+        ggtitle("Flagstaff Station")
+p2 <-  ggplot(original_df %>%  filter(Date_Time < "2014-07-05 15:00:00",
+                                 Date_Time > "2014-07-03 23:00:00")) +
+        geom_line(aes(x = Date_Time, y = fit_dat_plot),
+                  colour = plasma(1, begin = .335, end = 0),
+                  size = 2) +
+        geom_line(aes(x = Date_Time, y = `Flagstaff Station`),
+                  size  = 2) +
+        theme_minimal() + xlab("Time") +
+        ylab("Pedestrian Counts") +
+        ggtitle("Flagstaff Station with imputed values")
+grid.arrange(p1, p2, nrow = 1)
+```
 

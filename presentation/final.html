@@ -155,6 +155,16 @@ and a quaispoisson error distribution.
 - These models only use time and date based variables to predict pedestrian counts
   * `DayType` is a factor level/categorical variable based on the day of the week and public holidays
   * `Time` is treated as a factor level, as it has a non-linear relationship with counts
+
+---
+
+## Step 2: Replacing missing values with imputed values
+
+- Need to fill the missing data at the sensors with small proportions of missing values first
+  * The imputation models at sensors with large proportions of missing values are based on neighbouring sensors
+  * Requires complete data at neighbours to work properly
+
+&lt;img src="final_files/figure-html/unnamed-chunk-9-1.png" width="720" /&gt;
     </textarea>
 <script src="https://remarkjs.com/downloads/remark-latest.min.js"></script>
 <script>var slideshow = remark.create({
