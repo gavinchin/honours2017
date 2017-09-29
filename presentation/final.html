@@ -51,7 +51,6 @@ class: middle
 - The data is available as a `.csv` at https://data.melbourne.vic.gov.au/, and is updated monthly
 - Alternatively, the data is also available as daily data from http://www.pedestrian.melbourne.vic.gov.au/
   * The `rwalkr` R package by Earo Wang provides an API to access the data from both sources easily in R in a tidy format
-
 - Both sources of data provide the same counts data, but have different forms
 
 We use the daily data sourced from `pedestrian.melbourne.vic.gov.au` rather than the data available at the Open Data Platform as missing values are explicit
@@ -127,17 +126,35 @@ class: middle, center
 
 ---
 class: middle
-## Imputation Algorithm
+# Imputation Algorithm
 
 #### Needed to develop an algorithm to:
 
-- Find which sensors have a "large" proportion of missing values  
-- At each sensor location, run appropriate GLM model with quasipoisson error distribution for imputation  
+- **Step 1:** Find which sensors have a "large" proportion of missing values  
+- **Step 2:** At each sensor location, run appropriate GLM model with quasipoisson error distribution for imputation  
   * if "small", use GLM with `Hourly_Counts` as response variable and time and date based variables as predictors
   * if "large", use GLM with `Hourly_Counts` as response variable and neighbouring sensor counts as predictors
-- Replace missing values with imputed values  
+- **Step 3:** Replace missing values with imputed values  
+---
+## Step 1: Calculating proportion of missing values
+- Need to first fix potential false zero-count values
+  * Some observations of `Count = 0` may actually be missing values
+  * Include a check for long periods with zero count, and replace with `NA` if too long
+- Classify sensors as "small" or "large" proportion of missing values with a threshold proportion
+  * We used 10% as the threshold proportion
+&lt;img src="final_files/figure-html/unnamed-chunk-8-1.png" width="504" style="display: block; margin: auto;" /&gt;
 
 ---
+
+## Step 2: Fit models with "small" proportion of missing values
+
+At each sensor location with small proportion of missing values, we estimate a generalised linear model with:
+`$$\mu_{\text{Sensor}, \text{Month}, \text{DayType}, \text{Time}} \sim \text{Month} + \text{Time}\times \text{DayType}$$`
+and a quaispoisson error distribution.
+- Quasipoisson regression allows for `\(Var[\text{HourlyCount}] = \theta \mu\)`
+- These models only use time and date based variables to predict pedestrian counts
+  * `DayType` is a factor level/categorical variable based on the day of the week and public holidays
+  * `Time` is treated as a factor level, as it has a non-linear relationship with counts
     </textarea>
 <script src="https://remarkjs.com/downloads/remark-latest.min.js"></script>
 <script>var slideshow = remark.create({
