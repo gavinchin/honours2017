@@ -57,33 +57,36 @@ We use the daily data sourced from `pedestrian.melbourne.vic.gov.au` rather than
 
 ---
 
-## Format of the data
+# Format of the data
 #### Variables available:
-- Time and Date
-- Sensor ID/Location
-- Hourly Pedestrian Count
+- Time and date, sensor ID/location and hourly pedestrian count (volume)
 
 
 ```
 ## # A tibble: 1,409,712 x 5
-##                        Sensor  Date_Time       Date  Time Count
-##                         &lt;chr&gt;     &lt;date&gt;     &lt;date&gt; &lt;int&gt; &lt;int&gt;
-##  1              State Library 2014-01-01 2014-01-01     0  1709
-##  2      Collins Place (South) 2014-01-01 2014-01-01     0   893
-##  3      Collins Place (North) 2014-01-01 2014-01-01     0   404
-##  4          Flagstaff Station 2014-01-01 2014-01-01     0   462
-##  5          Melbourne Central 2014-01-01 2014-01-01     0  3088
-##  6           Town Hall (West) 2014-01-01 2014-01-01     0  3227
-##  7 Bourke Street Mall (North) 2014-01-01 2014-01-01     0     0
-##  8 Bourke Street Mall (South) 2014-01-01 2014-01-01     0   936
-##  9       Australia on Collins 2014-01-01 2014-01-01     0   969
-## 10     Southern Cross Station 2014-01-01 2014-01-01     0   886
-## # ... with 1,409,702 more rows
+##                  Sensor  Date_Time       Date  Time Count
+##                   &lt;chr&gt;     &lt;date&gt;     &lt;date&gt; &lt;int&gt; &lt;int&gt;
+## 1         State Library 2014-01-01 2014-01-01     0  1709
+## 2 Collins Place (South) 2014-01-01 2014-01-01     0   893
+## 3 Collins Place (North) 2014-01-01 2014-01-01     0   404
+## 4     Flagstaff Station 2014-01-01 2014-01-01     0   462
+## # ... with 1.41e+06 more rows
 ```
 
----
 
-# Why do we want to model pedestrian traffic?
+&lt;img src="final_files/figure-html/unnamed-chunk-5-1.png" width="720" /&gt;
+
+---
+class: center
+# The Problem: Prediction of pedestrian traffic
+&lt;img src="final_files/figure-html/unnamed-chunk-6-1.png" width="720" /&gt;
+
+
+- Different locations have different counts and patterns
+- We want to predict using 2014-2016 data to train our model
+
+---
+## Why do we want to model pedestrian traffic?
 
 ### Being able to predict how many people pass through a certain location can be used by the government sector as well as the private sector  
 
@@ -97,18 +100,9 @@ We use the daily data sourced from `pedestrian.melbourne.vic.gov.au` rather than
   * Resource management
   * Investment planning
 ---
-class: center
-## The Problem: Prediction of pedestrian traffic
-&lt;img src="final_files/figure-html/unnamed-chunk-5-1.png" width="720" /&gt;
-
---
-
-#### Different locations have different counts and patterns
-
----
 class: middle, center
 # Missing Data
-&lt;img src="final_files/figure-html/unnamed-chunk-6-1.png" width="864" /&gt;
+&lt;img src="final_files/figure-html/unnamed-chunk-7-1.png" width="864" /&gt;
 
 - Some small and large periods of missing data
 - We need to impute these values before building a predictive model
@@ -122,7 +116,7 @@ class: middle, center
 
 
 
-&lt;img src="final_files/figure-html/unnamed-chunk-7-1.png" width="504" style="display: block; margin: auto;" /&gt;
+&lt;img src="final_files/figure-html/unnamed-chunk-8-1.png" width="504" style="display: block; margin: auto;" /&gt;
 
 ---
 class: middle
@@ -144,14 +138,14 @@ class: middle
 - Classify sensors as "small" or "large" proportion of missing values with a threshold proportion
   * We used 10% as the threshold proportion
 
-&lt;img src="final_files/figure-html/unnamed-chunk-8-1.png" width="504" style="display: block; margin: auto;" /&gt;
+&lt;img src="final_files/figure-html/unnamed-chunk-9-1.png" width="504" style="display: block; margin: auto;" /&gt;
 
 
 ---
 class: middle, center
 ## Step 1: Classification of sensors by "small" and "large" proportion of  missing values
 
-&lt;img src="final_files/figure-html/unnamed-chunk-9-1.png" width="792" style="display: block; margin: auto;" /&gt;
+&lt;img src="final_files/figure-html/unnamed-chunk-10-1.png" width="792" style="display: block; margin: auto;" /&gt;
 
 ---
 
@@ -173,14 +167,14 @@ and a quaispoisson error distribution.
   * The imputation models at sensors with large proportions of missing values are based on neighbouring sensors
   * Requires complete data at neighbours to work properly
 
-&lt;img src="final_files/figure-html/unnamed-chunk-10-1.png" width="720" /&gt;
+&lt;img src="final_files/figure-html/unnamed-chunk-11-1.png" width="720" /&gt;
 
 
 ---
 class: middle
-## Step 2c: Fit models at sensors with "large" proportion of missing values
+## Step 2c: Find neighbours for sensors with "large" proportion of missing values
 
-&lt;img src="final_files/figure-html/unnamed-chunk-11-1.png" width="504" style="display: block; margin: auto;" /&gt;
+&lt;img src="final_files/figure-html/unnamed-chunk-12-1.png" width="504" style="display: block; margin: auto;" /&gt;
 - Need to use complete data from neighbouring sensors
   * Use data from imputation in previous step
 - Neighbour defined as geographical neighbours for simplicity
@@ -188,12 +182,26 @@ class: middle
 
 ---
 class: center, middle
-## _Step 2c: Fit models at sensors with "large" proportion of missing values_
+## _Step 2c: Fit find neighbours sensors with "large" proportion of missing values_
 
 
 
 
-&lt;img src="final_files/figure-html/unnamed-chunk-13-1.png" width="720" /&gt;
+&lt;img src="final_files/figure-html/unnamed-chunk-14-1.png" width="720" /&gt;
+
+- Need to standardise counts at neighbours to match patterns
+
+---
+## _Step 2c: Fit models using neighbours_
+At each sensor location with "large" proportion of missing values, we estimate a generalised linear model with:  
+
+`$$\mu_{\text{Time}, \text{HourlyCounts}_{\text{neighbours}}^{SC}} \sim \text{Time} \times \text{HourlyCounts}_{\text{neighbour 1}}^{SC} + \text{Time} \times \text{HourlyCounts}_{\text{neighbour 2}}^{SC}$$`
+
+and a quaispoisson error distribution.  
+
+- use interaction with `Time`, the hour of the day, and the scaled counts at neighbours
+  * Again, `Time` is treated as a factor variable
+  * Counts scaled by standardising each sensor to `\(\mu = 0\)` and `\(\sigma^2 = 1\)`
     </textarea>
 <script src="https://remarkjs.com/downloads/remark-latest.min.js"></script>
 <script>var slideshow = remark.create({

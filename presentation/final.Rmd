@@ -88,17 +88,13 @@ We use the daily data sourced from `pedestrian.melbourne.vic.gov.au` rather than
 
 ---
 
-## Format of the data
+# Format of the data
 #### Variables available:
-- Time and Date
-- Sensor ID/Location
-- Hourly Pedestrian Count
+- Time and date, sensor ID/location and hourly pedestrian count (volume)
 
 ```{r, echo=FALSE}
-ped_data %>% as.tibble
+print(ped_data %>% as.tibble, n = 4)
 ```
-
----
 ```{r, include = FALSE, echo = FALSE, warning=FALSE, message=FALSE, cache = TRUE}
 ped_data$Sensor_ID <- ped_data$Sensor
 ped_data$Hourly_Counts <- ped_data$Count
@@ -138,7 +134,46 @@ original_df <- dfa
 dfa <- filter(dfa, Date_Time < "2017-01-01")
 ori_2 <- filter(original_df, Date_Time < "2017-01-01")
 ```
-# Why do we want to model pedestrian traffic?
+
+```{r, echo=FALSE, fig.retina = 3, fig.height=3, fig.width= 10, warning=F, message = F}
+pd2 <- ggplot(dfa %>% 
+              filter(Date_Time > "2016-07-12 00:00:00",
+                     Date_Time < "2016-07-25 00:00:00")) +
+        scale_y_continuous(limits = c(0, 7000)) +
+        xlab("Time and Date") +
+        theme_minimal()
+
+p1 <-  pd2 + geom_line(aes(x = Date_Time, y = `Flagstaff Station`))
+p2 <-  pd2 + geom_line(aes(x = Date_Time, y = `Southbank`))
+p3 <-  pd2 + geom_line(aes(x = Date_Time, y = `State Library`))
+
+grid.arrange(p1, p2, p3, ncol = 1)
+```
+
+---
+class: center
+# The Problem: Prediction of pedestrian traffic
+```{r, echo=FALSE, fig.retina = 3, fig.height=5, fig.width= 10, warning=F, message = F}
+pd <- ggplot(dfa %>% filter(Date_Time < "2017-01-01 00:00:00",
+                            Date_Time > "2013-12-31 00:00:00")) +
+        scale_y_continuous(limits = c(0, 7000)) +
+        xlab(NULL) +
+        theme_minimal()
+
+p1 <-  pd + geom_line(aes(x = Date_Time, y = `Flagstaff Station`))
+p2 <-  pd + geom_line(aes(x = Date_Time, y = `Southbank`))
+p3 <-  pd + geom_line(aes(x = Date_Time, y = `State Library`)) +
+            xlab("Time and Date")
+
+grid.arrange(p2, p1, p3, nrow = 3, ncol = 1)
+```
+
+
+- Different locations have different counts and patterns
+- We want to predict using 2014-2016 data to train our model
+
+---
+## Why do we want to model pedestrian traffic?
 
 ### Being able to predict how many people pass through a certain location can be used by the government sector as well as the private sector  
 
@@ -152,29 +187,6 @@ ori_2 <- filter(original_df, Date_Time < "2017-01-01")
   * Resource management
   * Investment planning
 ---
-class: center
-## The Problem: Prediction of pedestrian traffic
-```{r, echo=FALSE, fig.retina = 3, fig.height=6, fig.width= 10}
-p1 <- ggplot(dfa %>% filter(Date_Time > "2016-07-12 00:00:00",
-                            Date_Time < "2016-07-25 00:00:00")) +
-        geom_line(aes(x = Date_Time, y = `Flagstaff Station`)) +
-        scale_y_continuous(limits = c(0, 7000))
-p2 <- ggplot(dfa %>% filter(Date_Time > "2016-07-12 00:00:00",
-                            Date_Time < "2016-07-25 00:00:00")) +
-        geom_line(aes(x = Date_Time, y = `Southbank`)) +
-        scale_y_continuous(limits = c(0, 7000))
-p3 <- ggplot(dfa %>% filter(Date_Time > "2016-07-12 00:00:00",
-                            Date_Time < "2016-07-25 00:00:00")) +
-        geom_line(aes(x = Date_Time, y = `State Library`)) +
-        scale_y_continuous(limits = c(0, 7000))
-grid.arrange(p2, p1, p3, nrow = 3, ncol = 1)
-```
-
---
-
-#### Different locations have different counts and patterns
-
----
 class: middle, center
 # Missing Data
 ```{r, echo = FALSE, fig.retina=2, fig.width= 12, message=FALSE, warning=FALSE, cache = TRUE}
@@ -186,9 +198,11 @@ miss_plot_dat <- ped_data %>% filter(Date_Time > "2014-06-01",
 miss_plot_dat2 <- ped_data %>% group_by(Date) %>%
   filter(Date > "2014-06-01", Date < "2015-06-01") %>% left_join(miss_plot_dat)
 
-random_sensors <- c("Collins Place (North)","Lygon St (West)","Spring St-Lonsdale St (South)","Flinders St-Spring St (West)","Convention/Exhibition Centre","Sandridge Bridge")
+random_sensors <- c("Collins Place (North)","Southbank","Spring St-Lonsdale St (South)",
+                    "Flinders St-Spring St (West)","Convention/Exhibition Centre","Sandridge Bridge")
 
-mdf <- miss_plot_dat2 %>% filter(Sensor_ID %in% random_sensors)
+mdf <- miss_plot_dat2 %>% filter(Sensor_ID %in% random_sensors) %>%
+        mutate(Sensor_ID = as.factor(Sensor_ID))
 
 ggplot(mdf) +
   geom_point(aes(y = Sensor_ID, x = Date, colour = Weekly_Count), shape = 15, size = 15, alpha = 0.15) +
@@ -476,7 +490,7 @@ grid.arrange(p1, p2, nrow = 1)
 
 ---
 class: middle
-## Step 2c: Fit models at sensors with "large" proportion of missing values
+## Step 2c: Find neighbours for sensors with "large" proportion of missing values
 
 ```{r, echo = FALSE, fig.retina = 6, message=FALSE, warning=F, fig.height = 4, fig.align='center'}
 rownames(loc) <- loc$ids
@@ -525,7 +539,7 @@ ggmap(melb3) + geom_line(aes(x = lon, y = lat),
 
 ---
 class: center, middle
-## _Step 2c: Fit models at sensors with "large" proportion of missing values_
+## _Step 2c: Fit find neighbours sensors with "large" proportion of missing values_
 
 ```{r, echo = FALSE, fig.retina = 6, message=FALSE, warning=F, include=FALSE}
 i <- "Southbank"
@@ -569,7 +583,7 @@ p1 <- ggplot(tr_dat %>% filter(Date_Time < "2017-03-02",
                                       "Neighbour 2 (Sandridge Bridge)",
                                       "Target (Southbank)")) +
       xlab("Time") + theme_minimal() + ggtitle("Unscaled Neighbours") +
-      theme(legend.position = "bottom")
+      theme(legend.position = "none")
       
 p2 <- ggplot(tr_dat_sc %>% filter(Date_Time < "2017-03-02",
                          Date_Time > "2017-02-26")) +
@@ -581,13 +595,31 @@ p2 <- ggplot(tr_dat_sc %>% filter(Date_Time < "2017-03-02",
                                       "Target (Southbank)")) +
       xlab("Time") + ggtitle("Scaled/Stadardised Neighbours") +
       ylab("Standard Deviation") + theme_minimal() +
-      theme(legend.position = "none")
+      theme(legend.position = "bottom")
 ```
 
 
-```{r, echo = FALSE, fig.retina = 6, message=FALSE, warning=F, fig.width=10, fig.height=6.5}
+```{r, echo = FALSE, fig.retina = 6, message=FALSE, warning=F, fig.width=10, fig.height=6}
 grid.arrange(p1, p2, ncol = 1)
 ```
+
+- Need to standardise counts at neighbours to match patterns
+
+---
+## _Step 2c: Fit models using neighbours_
+At each sensor location with "large" proportion of missing values, we estimate a generalised linear model with:  
+
+$$\mu_{\text{Time}, \text{HourlyCounts}_{\text{neighbours}}^{SC}} \sim \text{Time} \times \text{HourlyCounts}_{\text{neighbour 1}}^{SC} + \text{Time} \times \text{HourlyCounts}_{\text{neighbour 2}}^{SC}$$
+
+and a quaispoisson error distribution.  
+
+- use interaction with `Time`, the hour of the day, and the scaled counts at neighbours
+  * Again, `Time` is treated as a factor variable
+  * Counts scaled by standardising each sensor to $\mu = 0$ and $\sigma^2 = 1$
+
+
+
+
 
 
 
