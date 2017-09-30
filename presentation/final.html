@@ -54,6 +54,7 @@ class: middle
 - Both sources of data provide the same counts data, but have different forms
 
 We use the daily data sourced from `pedestrian.melbourne.vic.gov.au` rather than the data available at the Open Data Platform as missing values are explicit
+- accessible using `rwalkr::walk_melb()`
 
 ---
 
@@ -175,8 +176,7 @@ class: middle
 ## Step 2c: Find neighbours for sensors with "large" proportion of missing values
 
 &lt;img src="final_files/figure-html/unnamed-chunk-12-1.png" width="504" style="display: block; margin: auto;" /&gt;
-- Need to use complete data from neighbouring sensors
-  * Use data from imputation in previous step
+- Need to use data from neighbouring sensors
 - Neighbour defined as geographical neighbours for simplicity
   * Find two closest sensors by great-circle (haversine) distance
 
@@ -192,6 +192,7 @@ class: center, middle
 - Need to standardise counts at neighbours to match patterns
 
 ---
+class: middle
 ## _Step 2c: Fit models using neighbours_
 At each sensor location with "large" proportion of missing values, we estimate a generalised linear model with:  
 
@@ -202,6 +203,34 @@ and a quaispoisson error distribution.
 - use interaction with `Time`, the hour of the day, and the scaled counts at neighbours
   * Again, `Time` is treated as a factor variable
   * Counts scaled by standardising each sensor to `\(\mu = 0\)` and `\(\sigma^2 = 1\)`
+
+---
+## Step 3: Replacing missing values with imputed values
+
+Using the models estimated, we can impute the missing values
+- For sensors with large proportion of missing values, we needed to have complete data at the neighbours
+  * Can't use neighbours with large proportion of missing values
+  * Use imputed data from sensors with small proportion of missing values
+
+&lt;img src="final_files/figure-html/unnamed-chunk-15-1.png" width="720" /&gt;
+
+---
+class: middle
+# Implementation of the imputation algorithm
+
+- general code which will run the algorithm
+- inputs required: 
+  * data in wide format
+  * threshold value for missing values proportion (_default:_ `threshold = 0.1`)
+  * max length of repeated values (_default:_ `maxlength = 50`)
+- use R and RStudio with packages:
+  * `dplyr`, `lubridate` and `tidyr` for data manipulation
+  * `foreach` and `doSNOW` for parallel computing
+  * `rwalkr` for accessing latest data
+---
+## Imputation Model Evaluation
+
+&lt;img src="final_files/figure-html/unnamed-chunk-16-1.png" width="648" /&gt;
     </textarea>
 <script src="https://remarkjs.com/downloads/remark-latest.min.js"></script>
 <script>var slideshow = remark.create({

@@ -85,6 +85,7 @@ class: middle
 - Both sources of data provide the same counts data, but have different forms
 
 We use the daily data sourced from `pedestrian.melbourne.vic.gov.au` rather than the data available at the Open Data Platform as missing values are explicit
+- accessible using `rwalkr::walk_melb()`
 
 ---
 
@@ -225,7 +226,7 @@ ggplot(mdf) +
 ```{r model_alg, echo = FALSE, warning=FALSE, message=FALSE, cache = TRUE}
 n_obs <- nrow(dfa)
 threshold <- 0.1
-threshold_miss_hrs <- 50
+threshold_miss_hrs <- 17
 
 run_lengths <- list()
 
@@ -443,7 +444,7 @@ ggmap(melb2) + geom_point(aes(x = lons, y = lats, colour = cl),
 At each sensor location with small proportion of missing values, we estimate a generalised linear model with:
 $$\mu_{\text{Sensor}, \text{Month}, \text{DayType}, \text{Time}} \sim \text{Month} + \text{Time}\times \text{DayType}$$
 and a quaispoisson error distribution.
-- Quasipoisson regression allows for $Var[\text{HourlyCount}] = \theta \mu$
+- Quasipoisson regression allows for $Var[\text{HourlyCount}] = \theta \mu$ (ie. overdispersion)
 - These models only use time and date based variables to predict pedestrian counts
   * `DayType` is a factor level/categorical variable based on the day of the week and public holidays
   * `Time` is treated as a factor level, as it has a non-linear relationship with counts
@@ -532,8 +533,7 @@ ggmap(melb3) + geom_line(aes(x = lon, y = lat),
                     legend.position = c(.8,0.2))
 
 ```
-- Need to use complete data from neighbouring sensors
-  * Use data from imputation in previous step
+- Need to use data from neighbouring sensors
 - Neighbour defined as geographical neighbours for simplicity
   * Find two closest sensors by great-circle (haversine) distance
 
@@ -606,6 +606,7 @@ grid.arrange(p1, p2, ncol = 1)
 - Need to standardise counts at neighbours to match patterns
 
 ---
+class: middle
 ## _Step 2c: Fit models using neighbours_
 At each sensor location with "large" proportion of missing values, we estimate a generalised linear model with:  
 
@@ -617,9 +618,84 @@ and a quaispoisson error distribution.
   * Again, `Time` is treated as a factor variable
   * Counts scaled by standardising each sensor to $\mu = 0$ and $\sigma^2 = 1$
 
+---
+## Step 3: Replacing missing values with imputed values
 
+Using the models estimated, we can impute the missing values
+- For sensors with large proportion of missing values, we needed to have complete data at the neighbours
+  * Can't use neighbours with large proportion of missing values
+  * Use imputed data from sensors with small proportion of missing values
 
+```{r, echo = FALSE, fig.retina = 6, message=FALSE, warning=F, fig.width=10, fig.height = 4}
+p1 <-   ggplot(original_df %>% filter(Date_Time < "2017-01-01")) +
+        geom_line(aes(x = Date_Time, y = `Southbank`)) +
+        scale_y_continuous(limits = c(0, 7500)) +
+        theme_minimal() + ylab("Pedestrian Count") +
+        ggtitle("Southbank Pedestrian Counts before Imputation")
 
+p2 <-   ggplot(original_df %>% filter(Date_Time < "2017-01-01")) +
+        geom_line(aes(x = Date_Time, y = dfa2$Southbank),
+                  colour = viridis(3)[1]) +
+        geom_line(aes(x = Date_Time, y = `Southbank`)) +
+        scale_y_continuous(limits = c(0, 7500)) +
+        theme_minimal() + ylab("Pedestrian Count") +
+        ggtitle("Southbank Pedestrian Counts after Imputation")
+grid.arrange(p1, p2, ncol = 1)
+```
 
+---
+class: middle
+# Implementation of the imputation algorithm
+
+- general code which will run the algorithm
+- inputs required: 
+  * data in wide format
+  * threshold value for missing values proportion (_default:_ `threshold = 0.1`)
+  * max length of repeated values (_default:_ `maxlength = 17`)
+- use R and RStudio with packages:
+  * `dplyr`, `lubridate` and `tidyr` for data manipulation
+  * `foreach` and `doSNOW` for parallel computing
+  * `rwalkr` for accessing latest data
+---
+## Imputation Model Evaluation
+
+```{r, echo = FALSE, fig.retina = 6, message=FALSE, warning=F, fig.width = 9}
+p1 <-   ggplot(data = NULL, aes(x = original_df %>% 
+             filter(Date_Time < "2017-01-01") %>%
+             .[, "Southern Cross Station"],
+           y = fitted_data$`Southern Cross Station`)) +
+           geom_point(alpha = 0.05) +
+           geom_abline(aes(slope = 1, intercept = 0),
+                       colour = viridis(3)[1],
+                       alpha = 0.5, size = 1.5,
+                       linetype = 2) +
+           geom_smooth(method = "lm", size = 1.5, alpha = 0.7, 
+                       colour = viridis(3)[3]) +
+           theme_minimal() + theme(aspect.ratio = 1) +
+           scale_x_continuous(limits = c(0, 4000)) +
+           scale_y_continuous(limits = c(0, 4000)) +
+           xlab("Actual Pedestrian Count") +
+           ylab("Predicted Pedestrian Count") +
+           ggtitle("Actual against Predicted at Southern Cross Station")
+
+p2 <-   ggplot(data = NULL, aes(x = dfa %>% 
+             filter(Date_Time < "2017-01-01") %>%
+             .[, "Southbank"],
+           y = fitted_data$`Southbank`)) +
+           geom_point(alpha = 0.05) +
+           geom_abline(aes(slope = 1, intercept = 0),
+                       colour = viridis(3)[1],
+                       alpha = 0.5, size = 1.5,
+                       linetype = 2) +
+           geom_smooth(method = "lm", size = 1.5, alpha = 0.7, 
+                       colour = viridis(3)[3]) +
+           theme_minimal() + theme(aspect.ratio = 1) +
+           scale_x_continuous(limits = c(0, 6000)) +
+           scale_y_continuous(limits = c(0, 6000)) +
+           xlab("Actual Pedestrian Count") +
+           ylab("Predicted Pedestrian Count") +
+           ggtitle("Actual against Predicted at Southbank")
+grid.arrange(p1, p2, nrow = 1)
+```
 
 
