@@ -390,7 +390,7 @@ ggplot() + geom_histogram(aes(x = na_prop*100), bins = 12) +
                      colour = 'red') +
           geom_text(aes(label = "10% Threshold", x = 10, y = 1),
                     colour = "white") +
-          ggtitle("Histogram of Proportions of Missing Values")
+          ggtitle("Histogram of Proportions of Missing Values during 2014 - 2016")
 ```
 
 
@@ -473,11 +473,12 @@ p2 <-  ggplot(original_df %>%  filter(Date_Time < "2014-07-05 15:00:00",
 grid.arrange(p1, p2, nrow = 1)
 ```
 
+
 ---
 class: middle
 ## Step 2c: Fit models at sensors with "large" proportion of missing values
 
-```{r, echo = FALSE, fig.retina = 3, message=FALSE, warning=F}
+```{r, echo = FALSE, fig.retina = 6, message=FALSE, warning=F, fig.height = 4, fig.align='center'}
 rownames(loc) <- loc$ids
 melb3 <- get_map(location = c(loc["Southbank",]$lons,
                               loc["Southbank",]$lats),
@@ -493,38 +494,100 @@ sens_lines_lat <- as.numeric(c(loc["Flinders St Station Underpass",]$lats,
 
 sens_lines <- data.frame(lon = sens_lines_lon,
                          lat = sens_lines_lat)
-```
-
-- Need to use complete data from neighbouring sensors
-  * Use data from imputation in previous step
-- Neighbour defined as geographical neighbours for simplicity
-  * Find two closest sensors by great-circle (haversine) distance
----
-class: center, middle
-```{r, echo = FALSE, fig.retina = 6, message=FALSE, warning=F, fig.width=10}
 ggmap(melb3) + geom_line(aes(x = lon, y = lat),
                         data = sens_lines, size = 2.5,
                         colour = viridis(3)[2], alpha = 0.5) +
                geom_point(aes(x = lons, y = lats, colour = cl),
-                          size = 12,
+                          size = 8,
                           data = loc) +
                scale_colour_viridis(discrete = TRUE,
                                     name = "Sensor NA Prop.",
                                     begin = 0.5, end = 0) +
                geom_point(aes(x = loc["Southbank",]$lons,
                               y = loc["Southbank",]$lats),
-                          size = 26, colour = viridis(3)[2]) +
+                          size = 16, colour = viridis(3)[2]) +
                geom_text(aes(label = ids, x = lons, y = lats),
-                         data = loc, size = 8,
+                         data = loc, size = 4,
                          nudge_y = -0.0002) +
               xlab(NULL) + ylab(NULL) +
-              scale_y_continuous(limits = c(-37.8215, -37.818)) +
               theme(plot.title = element_text(hjust = 0.5),
                     plot.caption = element_text(hjust = 0.5),
                     axis.text.x = element_blank(),
                     axis.text.y = element_blank(),
                     axis.ticks = element_blank(),
-                    legend.position = "right")
+                    legend.position = c(.8,0.2))
+
 ```
+- Need to use complete data from neighbouring sensors
+  * Use data from imputation in previous step
+- Neighbour defined as geographical neighbours for simplicity
+  * Find two closest sensors by great-circle (haversine) distance
+
+---
+class: center, middle
+## _Step 2c: Fit models at sensors with "large" proportion of missing values_
+
+```{r, echo = FALSE, fig.retina = 6, message=FALSE, warning=F, include=FALSE}
+i <- "Southbank"
+  sensor_dists <- numeric()
+  for (j in small_miss_sensors){
+      dists <- gcd.slc(loc[i,]$lons, loc[i,]$lats, loc[j,]$lons, loc[j,]$lats)
+      sensor_dists[j] <- dists
+  }
+  names(sensor_dists) <- small_miss_sensors
+  closest_sensor <- sensor_dists %>% sort %>%
+                    head(2) %>% names
+  dfa3 <- original_df %>% filter(Date_Time > "2017-01-01")
+  close_df <- dfa3[, closest_sensor[1]] %>% unlist
+  close_df2 <- dfa3[, closest_sensor[2]] %>% unlist
+  
+  close_dfsc <- scale(close_df)
+  close_dfsc2 <- scale(close_df2)
+
+  
+  sensor_df <- dfa3[, i] %>% unlist
+  sensor_dfsc <- scale(sensor_df)
+  
+  tr_dat <- data.frame(sensor_df, close_df, close_df2,
+                       Time = as.integer(dfa3$Time),
+                       Date_Time = dfa3$Date_Time,
+                       HDay = dfa3$HDay) %>%
+            gather(key = Sensor, value = Count, sensor_df:close_df2)
+  
+  tr_dat_sc <- data.frame(sensor_dfsc, close_dfsc, close_dfsc2,
+                       Time = as.integer(dfa3$Time),
+                       Date_Time = dfa3$Date_Time,
+                       HDay = dfa3$HDay) %>%
+            gather(key = Sensor, value = Count, sensor_dfsc:close_dfsc2)
+  
+p1 <- ggplot(tr_dat %>% filter(Date_Time < "2017-03-02",
+                         Date_Time > "2017-02-26")) +
+      geom_line(aes(x = Date_Time, y = Count,
+                    colour = Sensor), size = 2) +
+      scale_colour_viridis(discrete = TRUE,
+                           labels = c("Neighbour 1 (Flinders St Station Underpass)",
+                                      "Neighbour 2 (Sandridge Bridge)",
+                                      "Target (Southbank)")) +
+      xlab("Time") + theme_minimal() + ggtitle("Unscaled Neighbours") +
+      theme(legend.position = "bottom")
+      
+p2 <- ggplot(tr_dat_sc %>% filter(Date_Time < "2017-03-02",
+                         Date_Time > "2017-02-26")) +
+      geom_line(aes(x = Date_Time, y = Count,
+                    colour = Sensor), size = 2) +
+      scale_colour_viridis(discrete = TRUE,
+                           labels = c("Neighbour 1 (Flinders St Station Underpass)",
+                                      "Neighbour 2 (Sandridge Bridge)",
+                                      "Target (Southbank)")) +
+      xlab("Time") + ggtitle("Scaled/Stadardised Neighbours") +
+      ylab("Standard Deviation") + theme_minimal() +
+      theme(legend.position = "none")
+```
+
+
+```{r, echo = FALSE, fig.retina = 6, message=FALSE, warning=F, fig.width=10, fig.height=6.5}
+grid.arrange(p1, p2, ncol = 1)
+```
+
 
 
