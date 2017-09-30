@@ -776,4 +776,39 @@ ggplot(test_df %>% filter(Date_Time > "2017-08-31")) +
 
 ---
 
+# Predictive model using imputed data
+- can perform analysis at all locations now with complete data
+```{r, echo = FALSE, fig.retina = 6, message=FALSE, warning=F, fig.width = 10, fig.height = 3}
+melb_cent_mon9 <- dfa2 %>%
+  filter(Day == "Monday",
+         Time == 9) %>%
+         .$`Melbourne Central`
+
+monday_hdays <- dfa2 %>%
+  filter(Day == "Monday",
+         Time == 9) %>%
+  .$IsHDay
+
+p1 <- ggplot() + geom_line(aes(x = 1:length(melb_cent_mon9),
+                             y = melb_cent_mon9)) +
+      theme_minimal() + xlab("Time (nth Week since 2014)") +
+      geom_point(aes(x = 1:length(melb_cent_mon9),
+                     y = 0, alpha = monday_hdays),
+                 size = 3) + 
+      scale_alpha_discrete(name = "Is public holiday") + 
+      ylab("Counts at Monday 9am")
+p2 <- ggplot() + geom_density(aes(x = melb_cent_mon9)) +
+                 theme_minimal() + xlab("Counts at Monday 9am")
+
+grid.arrange(p1, p2, nrow = 1, top = "Monday 9am Counts at Melbourne Central")
+
+```
+- can treat each specific hour of the week as a time series
+  * find covariates outside the counts data to help predict counts
+  * eg. weather data, public events
+  
+
+
+
+
 
