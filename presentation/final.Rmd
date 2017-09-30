@@ -327,6 +327,8 @@ gcd.slc <- function(long1, lat1, long2, lat2) {
   return(d) # Distance in km
 }
 
+neighbours <- list()
+
 for (i in large_miss_sensors){
   # p$tick()$print()
   sensor_dists <- numeric()
@@ -339,7 +341,9 @@ for (i in large_miss_sensors){
                     head(2) %>% names
   close_df_scale <- dfa2[, closest_sensor[1]] %>% unlist %>% scale
   close_df_scale2 <- dfa2[, closest_sensor[2]] %>% unlist %>% scale
-
+  
+  neighbours[[i]] <- closest_sensor
+  
   sensor_df <- dfa2[, i] %>% unlist
   
   tr_dat <- data.frame(sensor_df, close_df_scale, close_df_scale2, Time = dfa$Time)
@@ -658,6 +662,7 @@ class: middle
   * `rwalkr` for accessing latest data
 ---
 ## Imputation Model Evaluation
+### In-sample Fit
 
 ```{r, echo = FALSE, fig.retina = 6, message=FALSE, warning=F, fig.width = 9}
 p1 <-   ggplot(data = NULL, aes(x = original_df %>% 
@@ -697,5 +702,78 @@ p2 <-   ggplot(data = NULL, aes(x = dfa %>%
            ggtitle("Actual against Predicted at Southbank")
 grid.arrange(p1, p2, nrow = 1)
 ```
+
+```{r}
+MARE_glm_tr <- numeric()
+for (i in unique(ped_data$Sensor)){
+  MARE_glm_tr[i] <- mean(abs(fitted_data[[i]] - unlist(dfa[, i])), na.rm = T) / mean(unlist(dfa[, i]), na.rm = T)
+}
+```
+
+---
+class: center, middle
+## Imputation Model Evaluation
+### Out-of-sample cross validation
+```{r, echo = FALSE}
+test_fit <- list()
+test_df <- original_df %>% filter(Date_Time > "2016-12-31")
+  for(i in small_miss_sensors){
+    test_fit[[i]] <- predict.glm(models[[i]],
+                                 newdata = test_df,
+                                 type = "response")
+    }
+
+  for(i in large_miss_sensors){
+    ts_data <- data.frame(close_dfsc = (test_df[, neighbours[[i]][1]] %>% scale),
+                          close_dfsc2 = (test_df[, neighbours[[i]][2]] %>% scale),
+                          Time = test_df$Time)
+    colnames(ts_data) <- c("close_df_scale", "close_df_scale2", "Time")
+    test_fit[[i]] <- predict.glm(models[[i]],
+                                 newdata = ts_data,
+                                 type = "response")
+  }
+MARE_glm_ts <- numeric()
+  for (i in unique(ped_data$Sensor)){
+    MARE_glm_ts[i] <- mean(abs(test_fit[[i]] - unlist(test_df[, i])),
+                           na.rm = T) / mean(unlist(test_df[, i]), na.rm = T)
+    }
+
+```
+
+```{r, echo = FALSE, fig.retina = 6, message=FALSE, warning=F, fig.width = 3.5, fig.height = 3.5}
+ggplot(test_df, aes(x = `Bourke Street Mall (North)`,
+                    y = test_fit$`Bourke Street Mall (North)`)) +
+                  geom_point(alpha = 0.5) +
+                  scale_x_continuous(limits = c(0, 5000)) +
+                  scale_y_continuous(limits = c(0, 5000)) +
+                  xlab("Actual") + ylab("Fitted") + theme(aspect.ratio = 1) +
+                  geom_abline(aes(slope = 1, intercept = 0),
+                              colour = viridis(3)[1],
+                              alpha = 0.7, size = 1.5,
+                              linetype = 2) +
+                  geom_smooth(method = "lm", size = 1.5, 
+                       colour = viridis(3)[3]) +
+                  ggtitle("Actual vs Fitted \n at Bourke Street Mall (North) in 2017")
+
+```
+
+```{r, echo = FALSE, fig.retina = 6, message=FALSE, warning=F, fig.width = 10, fig.height = 3}
+fit_t_plot <- data.frame(fit = test_fit$`Bourke Street Mall (North)`,
+                         Date_Time = test_df$Date_Time)  
+ggplot(test_df %>% filter(Date_Time > "2017-08-31")) +
+  geom_line(aes(x = Date_Time,
+                y = fit), data = (fit_t_plot %>%
+                                  filter(Date_Time > "2017-08-31")),
+            colour = magma(3)[2], alpha = 0.6) +
+  geom_line(aes(x = Date_Time,
+                y = `Bourke Street Mall (North)`),
+            alpha = 0.6) +
+  scale_y_continuous(limits = c(0, 5000)) +
+  theme_minimal() + xlab("Time") + ylab("Count") +
+  ggtitle("Bourke Street Mall (North)")
+
+```
+
+---
 
 

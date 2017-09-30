@@ -155,7 +155,7 @@ class: middle, center
 At each sensor location with small proportion of missing values, we estimate a generalised linear model with:
 `$$\mu_{\text{Sensor}, \text{Month}, \text{DayType}, \text{Time}} \sim \text{Month} + \text{Time}\times \text{DayType}$$`
 and a quaispoisson error distribution.
-- Quasipoisson regression allows for `\(Var[\text{HourlyCount}] = \theta \mu\)`
+- Quasipoisson regression allows for `\(Var[\text{HourlyCount}] = \theta \mu\)` (ie. overdispersion)
 - These models only use time and date based variables to predict pedestrian counts
   * `DayType` is a factor level/categorical variable based on the day of the week and public holidays
   * `Time` is treated as a factor level, as it has a non-linear relationship with counts
@@ -222,15 +222,36 @@ class: middle
 - inputs required: 
   * data in wide format
   * threshold value for missing values proportion (_default:_ `threshold = 0.1`)
-  * max length of repeated values (_default:_ `maxlength = 50`)
+  * max length of repeated values (_default:_ `maxlength = 17`)
 - use R and RStudio with packages:
   * `dplyr`, `lubridate` and `tidyr` for data manipulation
   * `foreach` and `doSNOW` for parallel computing
   * `rwalkr` for accessing latest data
 ---
 ## Imputation Model Evaluation
+### In-sample Fit
 
 &lt;img src="final_files/figure-html/unnamed-chunk-16-1.png" width="648" /&gt;
+
+
+```r
+MARE_glm_tr &lt;- numeric()
+for (i in unique(ped_data$Sensor)){
+  MARE_glm_tr[i] &lt;- mean(abs(fitted_data[[i]] - unlist(dfa[, i])), na.rm = T) / mean(unlist(dfa[, i]), na.rm = T)
+}
+```
+
+---
+class: center, middle
+## Imputation Model Evaluation
+### Out-of-sample cross validation
+
+
+&lt;img src="final_files/figure-html/unnamed-chunk-19-1.png" width="252" /&gt;
+
+&lt;img src="final_files/figure-html/unnamed-chunk-20-1.png" width="720" /&gt;
+
+---
     </textarea>
 <script src="https://remarkjs.com/downloads/remark-latest.min.js"></script>
 <script>var slideshow = remark.create({
