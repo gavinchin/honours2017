@@ -741,7 +741,7 @@ MARE_glm_ts <- numeric()
 
 ```
 
-```{r, echo = FALSE, fig.retina = 6, message=FALSE, warning=F, fig.width = 3.5, fig.height = 3.5}
+```{r, echo = FALSE, fig.retina = 6, message=FALSE, warning=F, fig.width = 4.5, fig.height = 3.5}
 ggplot(test_df, aes(x = `Bourke Street Mall (North)`,
                     y = test_fit$`Bourke Street Mall (North)`)) +
                   geom_point(alpha = 0.5) +
