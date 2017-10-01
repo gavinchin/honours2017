@@ -223,6 +223,7 @@ class: middle
   * data in wide format
   * threshold value for missing values proportion (_default:_ `threshold = 0.1`)
   * max length of repeated values (_default:_ `maxlength = 17`)
+  * `threshold` and `maxlength` are tuning parameters
 - use R and RStudio with packages:
   * `dplyr`, `lubridate` and `tidyr` for data manipulation
   * `foreach` and `doSNOW` for parallel computing
@@ -254,26 +255,51 @@ class: center, middle
 
 ---
 
-# Predictive model using imputed data
+## Predictive model using imputed data
 - can perform analysis at all locations now with complete data
 &lt;img src="final_files/figure-html/unnamed-chunk-21-1.png" width="720" /&gt;
 - can treat each specific hour of the week as a time series
   * find covariates outside the counts data to help predict counts
   * eg. weather data, public events
-
-### Objective: On the fly predictions of pedestrian traffic
+- can use clustering methods to investigate similarities between locations
+  * potentially use different models based on cluster membership
+  * eg. train stations, parks and recreation, shopping
+#### Objective: On the fly predictions of pedestrian traffic
 - requires efficient data storage
 
 ---
 # Future steps for final paper
+- perform simulations to test imputation algorithm
 - develop Shiny app wih RStudio to provide on the fly predictions
   * make the predictive models more accessible
   * provide visualisations to present the predictions
   
 &lt;img src="final_files/figure-html/unnamed-chunk-22-1.png" width="360" style="display: block; margin: auto;" /&gt;
 
-  
 - explore predictors outside of counts data
+
+---
+# Summary
+- investigated issues with the Melbourne CBD pedestrian data
+- proposed algorithm for imputation of missing values in pedestrian data using split approach based on missing values proportion
+- 
+
+---
+# Acknowledgements
+
+References:
+- City of Melbourne Open Data Portal - https://data.melbourne.vic.gov.au/
+- An Introduction to Statistical Learning - _G. James, D. Witten, T. Hastie and R. Tibshirani_
+- 
+
+R packages used:
+  * `dplyr`, `lubridate` and `tidyr` for data manipulation
+  * `foreach` and `doSNOW` for parallel computing
+  * `rwalkr` for accessing latest data (Thanks Earo!)
+  * `ggplot2` and `ggmap` for visualisations
+  * `xaringan` for compliling this presentation
+  
+GitHub repository for this project: https://github.com/gavinchin/honours2017
     </textarea>
 <script src="https://remarkjs.com/downloads/remark-latest.min.js"></script>
 <script>var slideshow = remark.create({

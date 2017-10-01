@@ -378,7 +378,8 @@ ggplot(original_df %>%  filter(Date_Time < "2014-07-06 00:00:00",
             size  = 2) +
   theme_minimal() + xlab("Time") +
   ylab("Pedestrian Counts") +
-  ggtitle("Pedestrian Counts at Southern Cross Station on 04/07/2014 - 05/07/2014")
+  ggtitle("Pedestrian Counts at Southern Cross Station \n on 04/07/2014 - 05/07/2014") +
+  theme(plot.title = element_text(hjust = 0.5))
 ```
 
 ---
@@ -527,7 +528,7 @@ ggmap(melb3) + geom_line(aes(x = lon, y = lat),
                           size = 16, colour = viridis(3)[2]) +
                geom_text(aes(label = ids, x = lons, y = lats),
                          data = loc, size = 4,
-                         nudge_y = -0.0002) +
+                         nudge_y = -0.0003) +
               xlab(NULL) + ylab(NULL) +
               theme(plot.title = element_text(hjust = 0.5),
                     plot.caption = element_text(hjust = 0.5),
@@ -587,7 +588,8 @@ p1 <- ggplot(tr_dat %>% filter(Date_Time < "2017-03-02",
                                       "Neighbour 2 (Sandridge Bridge)",
                                       "Target (Southbank)")) +
       xlab("Time") + theme_minimal() + ggtitle("Unscaled Neighbours") +
-      theme(legend.position = "none")
+      theme(legend.position = "none",
+            plot.title = element_text(hjust = 0.5))
       
 p2 <- ggplot(tr_dat_sc %>% filter(Date_Time < "2017-03-02",
                          Date_Time > "2017-02-26")) +
@@ -599,7 +601,8 @@ p2 <- ggplot(tr_dat_sc %>% filter(Date_Time < "2017-03-02",
                                       "Target (Southbank)")) +
       xlab("Time") + ggtitle("Scaled/Stadardised Neighbours") +
       ylab("Standard Deviation") + theme_minimal() +
-      theme(legend.position = "bottom")
+      theme(legend.position = "bottom",
+            plot.title = element_text(hjust = 0.5))
 ```
 
 
@@ -656,6 +659,7 @@ class: middle
   * data in wide format
   * threshold value for missing values proportion (_default:_ `threshold = 0.1`)
   * max length of repeated values (_default:_ `maxlength = 17`)
+  * `threshold` and `maxlength` are tuning parameters
 - use R and RStudio with packages:
   * `dplyr`, `lubridate` and `tidyr` for data manipulation
   * `foreach` and `doSNOW` for parallel computing
@@ -744,7 +748,7 @@ MARE_glm_ts <- numeric()
 ```{r, echo = FALSE, fig.retina = 6, message=FALSE, warning=F, fig.width = 4.5, fig.height = 3.5}
 ggplot(test_df, aes(x = `Bourke Street Mall (North)`,
                     y = test_fit$`Bourke Street Mall (North)`)) +
-                  geom_point(alpha = 0.5) +
+                  geom_point(alpha = 0.2) +
                   scale_x_continuous(limits = c(0, 5000)) +
                   scale_y_continuous(limits = c(0, 5000)) +
                   xlab("Actual") + ylab("Fitted") + theme(aspect.ratio = 1) +
@@ -753,7 +757,7 @@ ggplot(test_df, aes(x = `Bourke Street Mall (North)`,
                               alpha = 0.7, size = 1.5,
                               linetype = 2) +
                   geom_smooth(method = "lm", size = 1.5, 
-                       colour = viridis(3)[3]) +
+                       colour = viridis(3)[3], alpha = 0.7) +
                   ggtitle("Actual vs Fitted \n at Bourke Street Mall (North) in 2017")
 
 ```
@@ -777,9 +781,9 @@ ggplot(test_df %>% filter(Date_Time > "2017-08-31")) +
 
 ---
 
-# Predictive model using imputed data
+## Predictive model using imputed data
 - can perform analysis at all locations now with complete data
-```{r, echo = FALSE, fig.retina = 6, message=FALSE, warning=F, fig.width = 10, fig.height = 3}
+```{r, echo = FALSE, fig.retina = 6, message=FALSE, warning=F, fig.width = 10, fig.height = 2.5}
 melb_cent_mon9 <- dfa2 %>%
   filter(Day == "Monday",
          Time == 9) %>%
@@ -796,7 +800,8 @@ p1 <- ggplot() + geom_line(aes(x = 1:length(melb_cent_mon9),
       geom_point(aes(x = 1:length(melb_cent_mon9),
                      y = 0, alpha = monday_hdays),
                  size = 3) + 
-      scale_alpha_discrete(name = "Is public holiday") + 
+      scale_alpha_discrete(name = "Is public holiday",
+                           range = c(0.01,1)) + 
       ylab("Counts at Monday 9am")
 p2 <- ggplot() + geom_density(aes(x = melb_cent_mon9)) +
                  theme_minimal() + xlab("Counts at Monday 9am")
@@ -807,17 +812,20 @@ grid.arrange(p1, p2, nrow = 1, top = "Monday 9am Counts at Melbourne Central")
 - can treat each specific hour of the week as a time series
   * find covariates outside the counts data to help predict counts
   * eg. weather data, public events
-
-### Objective: On the fly predictions of pedestrian traffic
+- can use clustering methods to investigate similarities between locations
+  * potentially use different models based on cluster membership
+  * eg. train stations, parks and recreation, shopping
+#### Objective: On the fly predictions of pedestrian traffic
 - requires efficient data storage
 
 ---
 # Future steps for final paper
+- perform simulations to test imputation algorithm
 - develop Shiny app wih RStudio to provide on the fly predictions
   * make the predictive models more accessible
   * provide visualisations to present the predictions
   
-```{r, cache = TRUE, fig.retina = 4, echo = FALSE, message = FALSE, fig.align= 'center', fig.width=5, fig.height=4, warning=F}
+```{r, cache = TRUE, fig.retina = 4, echo = FALSE, message = FALSE, fig.align= 'center', fig.width=5, fig.height=3.5, warning=F}
 mar13_16_8am <- ped_data[ped_data$Date == "2016-03-13", ] %>%
                 filter(Time == 8)
 
@@ -845,9 +853,27 @@ ggmap(melb_dark) + geom_point(aes(x = lons, y = lats, alpha = Count),
 
 ```
 
-  
 - explore predictors outside of counts data
 
+---
+# Summary
+- investigated issues with the Melbourne CBD pedestrian data
+- proposed algorithm for imputation of missing values in pedestrian data using split approach based on missing values proportion
+- 
 
+---
+# Acknowledgements
 
+References:
+- City of Melbourne Open Data Portal - https://data.melbourne.vic.gov.au/
+- An Introduction to Statistical Learning - _G. James, D. Witten, T. Hastie and R. Tibshirani_
+- 
 
+R packages used:
+  * `dplyr`, `lubridate` and `tidyr` for data manipulation
+  * `foreach` and `doSNOW` for parallel computing
+  * `rwalkr` for accessing latest data (Thanks Earo!)
+  * `ggplot2` and `ggmap` for visualisations
+  * `xaringan` for compliling this presentation
+  
+GitHub repository for this project: https://github.com/gavinchin/honours2017
