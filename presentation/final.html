@@ -4,7 +4,7 @@
     <title>Modelling the City of Melbourne Pedestrian Data</title>
     <meta charset="utf-8">
     <meta name="author" content="Gavin Chin, supervised by Di Cook" />
-    <link href="libs/remark-css/example.css" rel="stylesheet" />
+    <link href="libs/remark-css-0.0.1/example.css" rel="stylesheet" />
     <link rel="stylesheet" href="myremark.css" type="text/css" />
   </head>
   <body>
@@ -14,9 +14,11 @@ class: center, middle, inverse, title-slide
 # Modelling the City of Melbourne Pedestrian Data
 ## Thesis Presentation
 ### Gavin Chin, supervised by Di Cook
-### 2 October 2017
+### 3 October 2017
 
 ---
+
+
 
 
 
@@ -29,16 +31,13 @@ The City of Melbourne has an Open Data Platform which makes council data availab
 
 This project will focus on the pedestrian sensor data
 
-&lt;img src="final_files/figure-html/unnamed-chunk-1-1.png" width="504" /&gt;
+&lt;img src="final_files/figure-html/unnamed-chunk-2-1.png" width="504" style="display: block; margin: auto;" /&gt;
 
 
 ---
-class: middle
-
 ## How is the data collected?
 
-The City of Melbourne has 43 sensors installed around Melbourne's CBD  
-- These sensors are positioned under an awning or street pole, and count the number of people passing each hour
+The City of Melbourne has 43 sensors installed around Melbourne's CBD. These sensors are positioned under an awning or street pole, and count the number of people passing each hour.
 
 &lt;img src="../img/ped_sensors.png" width="852px" height="369px" style="display: block; margin: auto;" /&gt;
 
@@ -50,17 +49,16 @@ class: middle
 
 - The data is available as a `.csv` at https://data.melbourne.vic.gov.au/, and is updated monthly
 - Alternatively, the data is also available as daily data from http://www.pedestrian.melbourne.vic.gov.au/
-  * The `rwalkr` R package by Earo Wang provides an API to access the data from both sources easily in R in a tidy format
+- The `rwalkr` R package by Earo Wang provides an API to access the data from both sources easily in R in a tidy format
 - Both sources of data provide the same counts data, but have different forms
 
-We use the daily data sourced from `pedestrian.melbourne.vic.gov.au` rather than the data available at the Open Data Platform as missing values are explicit
-- accessible using `rwalkr::walk_melb()`
+We use the daily data sourced from `pedestrian.melbourne.vic.gov.au` because missing values are explicit, accessible using `rwalkr::walk_melb()`
 
 ---
 
-# Format of the data
-#### Variables available:
-- Time and date, sensor ID/location and hourly pedestrian count (volume)
+## Format of the data
+
+Time and date, sensor ID/location and hourly pedestrian count (volume)
 
 
 ```
@@ -75,16 +73,15 @@ We use the daily data sourced from `pedestrian.melbourne.vic.gov.au` rather than
 ```
 
 
-&lt;img src="final_files/figure-html/unnamed-chunk-5-1.png" width="720" /&gt;
+&lt;img src="final_files/figure-html/unnamed-chunk-6-1.png" width="720" style="display: block; margin: auto;" /&gt;
 
 ---
-class: center
-# The Problem: Prediction of pedestrian traffic
-&lt;img src="final_files/figure-html/unnamed-chunk-6-1.png" width="720" /&gt;
+## The Problem: Prediction of pedestrian traffic
+&lt;img src="final_files/figure-html/unnamed-chunk-7-1.png" width="720" style="display: block; margin: auto;" /&gt;
 
 
 - Different locations have different counts and patterns
-- We want to predict using 2014-2016 data to train our model
+- We want to build the prediction model using 2014-2016 data to train it
 
 ---
 ## Why do we want to model pedestrian traffic?
@@ -101,11 +98,11 @@ class: center
   * Resource management
   * Investment planning
 ---
-class: middle, center
-# Missing Data
-&lt;img src="final_files/figure-html/unnamed-chunk-7-1.png" width="864" /&gt;
+## Missing Data
 
-- Some small and large periods of missing data
+&lt;img src="final_files/figure-html/unnamed-chunk-8-1.png" width="864" style="display: block; margin: auto;" /&gt;
+
+- Some small and large periods of missing data (grey indicates missing)
 - We need to impute these values before building a predictive model
 ---
 
@@ -117,15 +114,12 @@ class: middle, center
 
 
 
-&lt;img src="final_files/figure-html/unnamed-chunk-8-1.png" width="504" style="display: block; margin: auto;" /&gt;
+&lt;img src="final_files/figure-html/unnamed-chunk-9-1.png" width="504" style="display: block; margin: auto;" /&gt;
 
 ---
-class: middle
-# Imputation Algorithm
+## Imputation Algorithm
 
-#### Needed to develop an algorithm to:
-
-- **Step 1:** Find which sensors have a "large" proportion of missing values  
+- **Step 1:** Check proportion of missing values  
 - **Step 2:** At each sensor location, run appropriate GLM model with quasipoisson error distribution for imputation  
   * if "small", use GLM with `Hourly_Counts` as response variable and time and date based variables as predictors
   * if "large", use GLM with `Hourly_Counts` as response variable and neighbouring sensor counts as predictors
@@ -139,14 +133,14 @@ class: middle
 - Classify sensors as "small" or "large" proportion of missing values with a threshold proportion
   * We used 10% as the threshold proportion
 
-&lt;img src="final_files/figure-html/unnamed-chunk-9-1.png" width="504" style="display: block; margin: auto;" /&gt;
+&lt;img src="final_files/figure-html/unnamed-chunk-10-1.png" width="504" style="display: block; margin: auto;" /&gt;
 
 
 ---
 class: middle, center
 ## Step 1: Classification of sensors by "small" and "large" proportion of  missing values
 
-&lt;img src="final_files/figure-html/unnamed-chunk-10-1.png" width="792" style="display: block; margin: auto;" /&gt;
+&lt;img src="final_files/figure-html/unnamed-chunk-11-1.png" width="792" style="display: block; margin: auto;" /&gt;
 
 ---
 
@@ -154,7 +148,7 @@ class: middle, center
 
 At each sensor location with small proportion of missing values, we estimate a generalised linear model with:
 `$$\mu_{\text{Sensor}, \text{Month}, \text{DayType}, \text{Time}} \sim \text{Month} + \text{Time}\times \text{DayType}$$`
-and a quaispoisson error distribution.
+and a quasipoisson error distribution.
 - Quasipoisson regression allows for `\(Var[\text{HourlyCount}] = \theta \mu\)` (ie. overdispersion)
 - These models only use time and date based variables to predict pedestrian counts
   * `DayType` is a factor level/categorical variable based on the day of the week and public holidays
@@ -165,40 +159,40 @@ and a quaispoisson error distribution.
 ## Step 2b: Replacing missing values with imputed values
 
 - Need to fill the missing data at the sensors with small proportions of missing values first
-  * The imputation models at sensors with large proportions of missing values are based on neighbouring sensors
-  * Requires complete data at neighbours to work properly
 
-&lt;img src="final_files/figure-html/unnamed-chunk-11-1.png" width="720" /&gt;
+&lt;img src="final_files/figure-html/unnamed-chunk-12-1.png" width="720" style="display: block; margin: auto;" /&gt;
 
 
 ---
 class: middle
 ## Step 2c: Find neighbours for sensors with "large" proportion of missing values
 
-&lt;img src="final_files/figure-html/unnamed-chunk-12-1.png" width="504" style="display: block; margin: auto;" /&gt;
-- Need to use data from neighbouring sensors
-- Neighbour defined as geographical neighbours for simplicity
-  * Find two closest sensors by great-circle (haversine) distance
+  * The imputation models at sensors with large proportions of missing values are based on neighbouring sensors
+  * Requires complete data at neighbours to work properly
+
+&lt;img src="final_files/figure-html/unnamed-chunk-13-1.png" width="504" style="display: block; margin: auto;" /&gt;
+- Need to use data from neighbouring sensors, defined as geographical neighbours for simplicity
+- Find two closest sensors by great-circle (haversine) distance
 
 ---
-class: center, middle
-## _Step 2c: Fit find neighbours sensors with "large" proportion of missing values_
+class: middle
+## Step 2c: Fit find neighbours sensors with "large" proportion of missing values
 
 
 
 
-&lt;img src="final_files/figure-html/unnamed-chunk-14-1.png" width="720" /&gt;
+&lt;img src="final_files/figure-html/unnamed-chunk-15-1.png" width="720" style="display: block; margin: auto;" /&gt;
 
 - Need to standardise counts at neighbours to match patterns
 
 ---
 class: middle
-## _Step 2c: Fit models using neighbours_
+## Step 2c: Fit models using neighbours
 At each sensor location with "large" proportion of missing values, we estimate a generalised linear model with:  
 
 `$$\mu_{\text{Time}, \text{HourlyCounts}_{\text{neighbours}}^{SC}} \sim \text{Time} \times \text{HourlyCounts}_{\text{neighbour 1}}^{SC} + \text{Time} \times \text{HourlyCounts}_{\text{neighbour 2}}^{SC}$$`
 
-and a quaispoisson error distribution.  
+and a quasipoisson error distribution.  
 
 - use interaction with `Time`, the hour of the day, and the scaled counts at neighbours
   * Again, `Time` is treated as a factor variable
@@ -212,7 +206,7 @@ Using the models estimated, we can impute the missing values
   * Can't use neighbours with large proportion of missing values
   * Use imputed data from sensors with small proportion of missing values
 
-&lt;img src="final_files/figure-html/unnamed-chunk-15-1.png" width="720" /&gt;
+&lt;img src="final_files/figure-html/unnamed-chunk-16-1.png" width="720" style="display: block; margin: auto;" /&gt;
 
 ---
 class: middle
@@ -223,25 +217,18 @@ class: middle
   * data in wide format
   * threshold value for missing values proportion (_default:_ `threshold = 0.1`)
   * max length of repeated values (_default:_ `maxlength = 17`)
-  * `threshold` and `maxlength` are tuning parameters
 - use R and RStudio with packages:
   * `dplyr`, `lubridate` and `tidyr` for data manipulation
   * `foreach` and `doSNOW` for parallel computing
-  * `rwalkr` for accessing latest data
+
 ---
 class: center
 ## Imputation Model Evaluation
 ### In-sample fit
 
-&lt;img src="final_files/figure-html/unnamed-chunk-16-1.png" width="648" /&gt;
+&lt;img src="final_files/figure-html/unnamed-chunk-17-1.png" width="648" style="display: block; margin: auto;" /&gt;
 
 
-```r
-MARE_glm_tr &lt;- numeric()
-for (i in unique(ped_data$Sensor)){
-  MARE_glm_tr[i] &lt;- mean(abs(fitted_data[[i]] - unlist(dfa[, i])), na.rm = T) / mean(unlist(dfa[, i]), na.rm = T)
-}
-```
 
 ---
 class: center, middle
@@ -249,57 +236,55 @@ class: center, middle
 ### Out-of-sample cross validation
 
 
-&lt;img src="final_files/figure-html/unnamed-chunk-19-1.png" width="324" /&gt;
+&lt;img src="final_files/figure-html/unnamed-chunk-20-1.png" width="324" style="display: block; margin: auto;" /&gt;
 
-&lt;img src="final_files/figure-html/unnamed-chunk-20-1.png" width="720" /&gt;
+&lt;img src="final_files/figure-html/unnamed-chunk-21-1.png" width="720" style="display: block; margin: auto;" /&gt;
 
 ---
 
-## Predictive model using imputed data
+# Predictive model using imputed data
 - can perform analysis at all locations now with complete data
-&lt;img src="final_files/figure-html/unnamed-chunk-21-1.png" width="720" /&gt;
+&lt;img src="final_files/figure-html/unnamed-chunk-22-1.png" width="720" style="display: block; margin: auto;" /&gt;
 - can treat each specific hour of the week as a time series
   * find covariates outside the counts data to help predict counts
   * eg. weather data, public events
-- can use clustering methods to investigate similarities between locations
-  * potentially use different models based on cluster membership
-  * eg. train stations, parks and recreation, shopping
-#### Objective: On the fly predictions of pedestrian traffic
-- requires efficient data storage
 
 ---
-# Future steps for final paper
-- perform simulations to test imputation algorithm
-- develop Shiny app wih RStudio to provide on the fly predictions
+### Objective: On-the-fly predictions of pedestrian traffic
+
+- On-the-fly predictions based on glm computed on complete (imputed) training data (2014-2016), for each location
+- Model objects are hundreds of megabytes
+- Requires efficient data storage
+- Modify the model object, to minimise the structure containing only what is necessary for prediction.
+
+---
+# Future steps for finishing
+
+- package into a Shiny app for easy on-the-fly predictions
   * make the predictive models more accessible
-  * provide visualisations to present the predictions
+  * provide visualisations of the predictions
   
-&lt;img src="final_files/figure-html/unnamed-chunk-22-1.png" width="360" style="display: block; margin: auto;" /&gt;
+&lt;img src="final_files/figure-html/unnamed-chunk-23-1.png" width="360" style="display: block; margin: auto;" /&gt;
 
-- explore predictors outside of counts data
-
----
-# Summary
-- investigated issues with the Melbourne CBD pedestrian data
-- proposed algorithm for imputation of missing values in pedestrian data using split approach based on missing values proportion
-- 
+- perform simulations to test imputation algorithm for robustness
+- explore predictions outside of counts data
 
 ---
-# Acknowledgements
+## Summary of my contributions
+- Explored issues in the Melbourne CBD pedestrian data available from the City of Melbourne Open Data Portal
+- Algorithm for imputing missings
+- Efficient training model structures
 
-References:
-- City of Melbourne Open Data Portal - https://data.melbourne.vic.gov.au/
-- An Introduction to Statistical Learning - _G. James, D. Witten, T. Hastie and R. Tibshirani_
-- 
-
-R packages used:
+---
+## Acknowledgements
+- R and RStudio
+- Packages used for this work were: 
   * `dplyr`, `lubridate` and `tidyr` for data manipulation
   * `foreach` and `doSNOW` for parallel computing
   * `rwalkr` for accessing latest data (Thanks Earo!)
   * `ggplot2` and `ggmap` for visualisations
   * `xaringan` for compliling this presentation
-  
-GitHub repository for this project: https://github.com/gavinchin/honours2017
+- Code, presentation and thesis at [github.com:gavinchin/honours2017](github.com:gavinchin/honours2017)
     </textarea>
 <script src="https://remarkjs.com/downloads/remark-latest.min.js"></script>
 <script>var slideshow = remark.create({
