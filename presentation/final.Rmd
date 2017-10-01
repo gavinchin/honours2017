@@ -661,8 +661,9 @@ class: middle
   * `foreach` and `doSNOW` for parallel computing
   * `rwalkr` for accessing latest data
 ---
+class: center
 ## Imputation Model Evaluation
-### In-sample Fit
+### In-sample fit
 
 ```{r, echo = FALSE, fig.retina = 6, message=FALSE, warning=F, fig.width = 9}
 p1 <-   ggplot(data = NULL, aes(x = original_df %>% 
@@ -813,7 +814,39 @@ grid.arrange(p1, p2, nrow = 1, top = "Monday 9am Counts at Melbourne Central")
 ---
 # Future steps for final paper
 - develop Shiny app wih RStudio to provide on the fly predictions
-- explore predictors outide of counts data
+  * make the predictive models more accessible
+  * provide visualisations to present the predictions
+  
+```{r, cache = TRUE, fig.retina = 4, echo = FALSE, message = FALSE, fig.align= 'center', fig.width=5, fig.height=4, warning=F}
+mar13_16_8am <- ped_data[ped_data$Date == "2016-03-13", ] %>%
+                filter(Time == 8)
+
+loc$Sensor <- loc$ids
+
+mar13_16_8am %>% left_join(loc) -> mar13_16_8am
+
+bourkest_loc <- loc[loc$ids == "Flinders St Station Underpass",]
+
+  melb_dark <- get_map(location=c(bourkest_loc$lons, bourkest_loc$lats),
+                                zoom=16, maptype = "toner-lite")
+
+ggmap(melb_dark) + geom_point(aes(x = lons, y = lats, alpha = Count),
+                              colour = magma(8)[6],
+                      data = mar13_16_8am, shape = 15, size = 16) +
+              scale_alpha_continuous(range = c(.1, .6)) +
+              theme_minimal() +
+                theme(plot.title = element_text(hjust = 0.5),
+                    plot.caption = element_text(hjust = 0.5),
+                    axis.text.x = element_blank(),
+                    axis.text.y = element_blank(),
+                    axis.ticks = element_blank(),
+                    legend.position = "right") +
+                xlab(NULL) + ylab(NULL) + ggtitle("Pedestrian Traffic around Flinders St \n at 13 Mar 2016, 8AM")
+
+```
+
+  
+- explore predictors outside of counts data
 
 
 
