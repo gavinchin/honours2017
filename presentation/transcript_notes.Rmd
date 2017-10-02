@@ -72,4 +72,7 @@ Future steps which will be taken in the next couple weeks in order to finish thi
 Within the app, we want to provide visualisations which will help to show which locations are expected to be busy or quiet.
 Other steps which need to be taken include diagnostics on the imputation algorithm. This involves testing the robustness of the method by simulating different levels of missingness. 
 
+So a brief summary of the work I've done for my honours research project:
+I've explored issues in the Melbourne CBD pedestrian data provided by the City of Melbourne, proposed an algorithm for imputing missings in the data and investigated efficient training model structures within R in this application.
+
 
