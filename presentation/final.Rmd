@@ -69,7 +69,6 @@ ggmap(melb) + geom_point(aes(x = Longitude, y = Latitude),
                     axis.ticks = element_blank())
 ```
 
-
 ---
 ## How is the data collected?
 
@@ -230,7 +229,7 @@ ggplot(mdf) +
 ```{r model_alg, echo = FALSE, warning=FALSE, message=FALSE, cache = TRUE}
 n_obs <- nrow(dfa)
 threshold <- 0.1
-threshold_miss_hrs <- 17
+threshold_miss_hrs <- 6
 
 run_lengths <- list()
 
@@ -499,7 +498,7 @@ class: middle
   * The imputation models at sensors with large proportions of missing values are based on neighbouring sensors
   * Requires complete data at neighbours to work properly
 
-```{r, echo = FALSE, fig.retina = 6, message=FALSE, warning=F, fig.height = 3.25, fig.align='center'}
+```{r, echo = FALSE, fig.retina = 6, message=FALSE, warning=F, fig.height = 3.5, fig.height=3.5, fig.align='center'}
 rownames(loc) <- loc$ids
 melb3 <- get_map(location = c(loc["Southbank",]$lons,
                               loc["Southbank",]$lats),
@@ -527,9 +526,14 @@ ggmap(melb3) + geom_line(aes(x = lon, y = lat),
                geom_point(aes(x = loc["Southbank",]$lons,
                               y = loc["Southbank",]$lats),
                           size = 16, colour = viridis(3)[2]) +
-               geom_text(aes(label = ids, x = lons, y = lats),
-                         data = loc, size = 4,
+               geom_label(aes(label = ids, x = lons, y = lats,
+                              fill = cl),
+                         fontface = 'bold', colour = 'white',
+                         data = loc, size = 3.5,
                          nudge_y = -0.000325) +
+              scale_fill_viridis(discrete = TRUE,
+                                  name = "Sensor NA Prop.",
+                                  begin = 0.5, end = 0) +
               xlab(NULL) + ylab(NULL) +
               theme(plot.title = element_text(hjust = 0.5),
                     plot.caption = element_text(hjust = 0.5),
@@ -656,7 +660,7 @@ class: middle
 - inputs required: 
   * data in wide format
   * threshold value for missing values proportion (_default:_ `threshold = 0.1`)
-  * max length of repeated values (_default:_ `maxlength = 17`)
+  * max length of repeated values (_default:_ `maxlength = 6`)
 - use R and RStudio with packages:
   * `dplyr`, `lubridate` and `tidyr` for data manipulation
   * `foreach` and `doSNOW` for parallel computing
@@ -868,7 +872,7 @@ ggmap(melb_dark) + geom_point(aes(x = lons, y = lats, alpha = Count),
   * `dplyr`, `lubridate` and `tidyr` for data manipulation
   * `foreach` and `doSNOW` for parallel computing
   * `rwalkr` for accessing latest data (Thanks Earo!)
-  * `ggplot2` and `ggmap` for visualisations
+  * `ggplot2`, `ggmap` and `viridis` for visualisations
   * `xaringan` for compliling this presentation
 - Code, presentation and thesis at [github.com/gavinchin/honours2017](https://github.com/gavinchin/honours2017)
 
@@ -881,3 +885,24 @@ class: inverse, center
 --
 
 ## Thanks for listening!
+
+---
+## MARE of imputation
+```{r, fig.height=4, fig.retina = 3, fig.align='center'}
+MAE_tr <- numeric()
+for (i in unique(ped_data$Sensor)){
+    MAE_tr[i] <- mean(abs(fitted_data[[i]] - unlist(dfa[, i])),
+                           na.rm = T) / mean(unlist(dfa[, i]), na.rm = T)
+    }
+ggplot() + geom_histogram(aes(x = MAE_tr), binwidth = 0.05) +
+  geom_density(aes(x = MAE_tr),
+               adjust = 1.2, size = 2) +
+  labs(x = "Mean Absolute Relative Error",
+       y = "Number of Sensors",
+       title = "Histogram of MARE of algorithm") +
+  theme_minimal() + theme(plot.title = element_text(hjust = 0.5))
+```
+ 
+$$MARE_{sensor} =  \frac{1}{T^2} \frac{\sum_{t=1}^T \vert \widehat{\text{HourlyCounts}}_{sensor,t} - \text{HourlyCounts}_{sensor,t} \vert}{\sum_{t=1}^T \text{HourlyCounts}_{sensor,t}}$$
+
+ 

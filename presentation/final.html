@@ -33,7 +33,6 @@ This project will focus on the pedestrian sensor data
 
 &lt;img src="final_files/figure-html/unnamed-chunk-2-1.png" width="504" style="display: block; margin: auto;" /&gt;
 
-
 ---
 ## How is the data collected?
 
@@ -216,7 +215,7 @@ class: middle
 - inputs required: 
   * data in wide format
   * threshold value for missing values proportion (_default:_ `threshold = 0.1`)
-  * max length of repeated values (_default:_ `maxlength = 17`)
+  * max length of repeated values (_default:_ `maxlength = 6`)
 - use R and RStudio with packages:
   * `dplyr`, `lubridate` and `tidyr` for data manipulation
   * `foreach` and `doSNOW` for parallel computing
@@ -282,7 +281,7 @@ class: center, middle
   * `dplyr`, `lubridate` and `tidyr` for data manipulation
   * `foreach` and `doSNOW` for parallel computing
   * `rwalkr` for accessing latest data (Thanks Earo!)
-  * `ggplot2` and `ggmap` for visualisations
+  * `ggplot2`, `ggmap` and `viridis` for visualisations
   * `xaringan` for compliling this presentation
 - Code, presentation and thesis at [github.com/gavinchin/honours2017](https://github.com/gavinchin/honours2017)
 
@@ -295,6 +294,12 @@ class: inverse, center
 --
 
 ## Thanks for listening!
+
+---
+## MARE of imputation
+&lt;img src="final_files/figure-html/unnamed-chunk-24-1.png" width="504" style="display: block; margin: auto;" /&gt;
+ 
+`$$MARE_{sensor} =  \frac{1}{T^2} \frac{\sum_{t=1}^T \vert \widehat{\text{HourlyCounts}}_{sensor,t} - \text{HourlyCounts}_{sensor,t} \vert}{\sum_{t=1}^T \text{HourlyCounts}_{sensor,t}}$$`
     </textarea>
 <script src="https://remarkjs.com/downloads/remark-latest.min.js"></script>
 <script>var slideshow = remark.create({
