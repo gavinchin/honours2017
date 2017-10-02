@@ -857,7 +857,7 @@ ggmap(melb_dark) + geom_point(aes(x = lons, y = lats, alpha = Count),
 ```
 
 - perform simulations to test imputation algorithm for robustness
-- explore predictions outside of counts data
+- explore predictors outside of counts data
 
 ---
 ## Summary of my contributions

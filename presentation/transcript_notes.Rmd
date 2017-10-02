@@ -66,6 +66,10 @@ After we have a complete dataset at all the sensor locations, we can perform mor
 We look to explore covariates outside the counts data to help predict the counts, such as looking at weather data, or events data.  
 
 The objective of building the predictive model is to be able to provide on-the-fly predictions based on a glm computed on complete training data for each location.
-Because of the size of the data, with 3 years of hourly data at 43 sensor locations, the estimated model objects given by the base R GLM estimation function are very large. A complete model which contains a 
+Because of the size of the data, with 3 years of hourly data at 43 sensor locations, the estimated model objects given by the base R GLM estimation function are very large. A complete model which contains all the GLMs at each sensor adds up to a 1.7gb object in R. This is unnecessarily large, as the bare minimum we need to store is the coefficients and the model formula and some other small details to retain the predict function in R. This brings down the object size to under 20mb.
+
+Future steps which will be taken in the next couple weeks in order to finish this project is to package the predictive model into a Shiny app. This will provide an accessible interface which can be used by end users to make predictions about the pedestrian activity around the city at any particular time. This will also allow for inputs for covariates, such as weather.
+Within the app, we want to provide visualisations which will help to show which locations are expected to be busy or quiet.
+Other steps which need to be taken include diagnostics on the imputation algorithm. This involves testing the robustness of the method by simulating different levels of missingness. 
 
 
