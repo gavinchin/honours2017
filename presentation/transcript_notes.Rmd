@@ -29,7 +29,7 @@ The major issue we faced when trying to model the pedestrian data is the missing
 Initially, when a simple approach of estimating a model at each sensor location with the same model specification or parameterisation, we found that it did not work very well. In particular, sensors which had a "large" proportion of missing values did not have enough data to build a good imputation model.  
 So a different model for sensors with a "large" proportion of missing values was required. 
 
-This is the proposed algorithm for imputating the pedestrian data.
+This is the proposed algorithm for imputing the pedestrian data.
 The first step is to check the proportion of missing values at each sensor for decide which type of model is used to impute missing values.  
 Then, for each sensor location, we run the appropriate generalised linear model with quasipoisson errors to fit the data.  
 If the proportion of missing values in the data is small, then we estimate a GLM model with hourly counts as a response variable and use deterministic time and date based variables as predictors.  
@@ -58,8 +58,14 @@ After estimating the models at each of the sensors with large proportion of miss
 Implementing this imputation algorithm, we want to make the code as general as possible. This will ensure that the algorithm will work as the City of Melbourne adds more sensors around the CBD. Because we want to minimise the subjectivity if the models used for imputation, we want minimal user inputs to the algorithm. The resulting code only requires the data itself in the correct format, a threshold value for missing values proportion and the max length of repeated values. These two inputs can be viewed as tuning parameters to the algorithm, as it will affect which model is run at some sensors. We chose 10% missing value proportion as this seemed both reasonable, as well as giving sufficient number of sensors being considered to have a "small" proportion of missing values. A maximum length of 6 for repeated values is also used as we would not expect more than 6 hours of zero pedestrian activity.  
 We implement this algorithm using R and RStudio with packages: dplyr, lubridate and tidyr for data manipulation, and foreach and doSNOW for parallel computing. Parallel computing here significantly improves the performance of the algorithm in R, utilising more of the computer's capabilities and increasing efficiency.  
   
-Here we have some preliminary results for evaluation of the imputation method. Here we have actual values plotted against fitted values at Southern Cross Station, a sensor location with a small proportion of missing values, and Southbank, a sensor location with a large proportion of missing values. The yellow line is a linear fit line, while the dashed purple line indicates a perfect fit, where predicted values are equal to actual values. 
+Here we have some preliminary results for evaluation of the imputation method. Here we have actual values plotted against fitted values at Southern Cross Station, a sensor location with a small proportion of missing values, and Southbank, a sensor location with a large proportion of missing values. The yellow line is a linear fit line, while the dashed purple line indicates a perfect fit, where predicted values are equal to actual values. As these are in-sample fits - the data on which the models are trained on, we expected quite good accuracy.  
 
+This is an example of the out-of-sample fit, where we plot the 2017 actual counts against the fitted counts. We observe that the the imputation is underestimating the counts, where the slope of the fitted linear curve is less than 1. When we look a small window of the time series, we can also see the underestimation. But overall, we see the pattern tends to match the actual pattern.
 
+After we have a complete dataset at all the sensor locations, we can perform more meaningful analysis on the data. Foe example, we can see what happens when we treat a specific hour of the week as a time series. When we build the predictive model, we are looking to include predictors which will explain these deviations from the mean. Looking at the distribution of the counts at Melbourne Central on Mondays at 9 am from a kernel desity estimation, we see that it is reasonably close to being normally distributed.
+We look to explore covariates outside the counts data to help predict the counts, such as looking at weather data, or events data.  
+
+The objective of building the predictive model is to be able to provide on-the-fly predictions based on a glm computed on complete training data for each location.
+Because of the size of the data, with 3 years of hourly data at 43 sensor locations, the estimated model objects given by the base R GLM estimation function are very large. A complete model which contains a 
 
 
