@@ -1,0 +1,65 @@
+---
+title: "Untitled"
+output: github_document
+---
+
+# Presentation Transcript
+
+I'm Gavin and I've been working on modelling Melbourne CBD pedestrian data.  
+
+The City of Melbourne provide an open data portal, which makes council data publicly available.  
+This project will focus on the pedestrian sensor data.  
+  
+Currently, the City of Melbourne has 43 sensors installed around the Melbourne CBD. These sensors are positioned under an awning or street pole, and count the number of people pass through the counting zone each hour. This data is then sent to a server.  
+  
+The public can access the pedestrian data a number of ways. A raw csv file can be downloaded at the official City of Melbourne open data portal website. The data available there is updated on a monthly basis.  
+Alternatively, the City of Melbourne also hosts an interative visualisation of the pedestrian data, which provides csv files containing data for a single day.  
+Using the rwalkr package by Earo, we can easily access the Melbourne pedestrian data to use for analysis. This package imports the data in tidy and easy to use format. 
+For this project, we use the single day data provided by the visualisation site through the walk_melb function in R. We use this dataset instead of the one available at the Open Data Portal because missing values are explicit, as well as because it is updated daily.   
+  
+The data we are working with provides three main variables. The time and date, sensor id or location, and the hourly pedestrian count. The data is provided in a long format. For most of the analysis, a wide data format has been used instead, providing a single observation for each hour, and the counts for the hour at each location being a column in the data.  
+This reduces the number of rows in the data, and makes data manipulations, such as generating time and date based variables, a lot more efficient because we only need to do a single calculation for each hour of data rather 43 calculations for each sensor.  
+
+The objective of this project is to be able to predict how many people will pass through each sensor for a given time and date. We want to built the prediction model using 2014-2016 data to train it, leaving the current 2017 data as a test set. We have chosen not to use data prior to 2014 because of a very high proportion of missing data as many sensors were not installed before 2013.  
+  
+Well, why would we want to predict pedestrian traffic? Being able to predict how many people pass through a certain location can be used by both the government sector as wel as the private sector. Examples of some uses may be infrastructure planning, or security planning (which has become quite important in recent times). Private uses of such information include marketing, for finding good locations to advertise, resource management for businesses, and investment planning.
+
+The major issue we faced when trying to model the pedestrian data is the missing data. Even when we take a smaller period of the data, by only using data from 2014 onwards, we see that most sensors having missing data. In particular, we see that the periods of missing data can vary between sensors, and the lengths of missing data as well. Some of these missing values are caused by sensor malfunction or technical problems, while others are missing as the sensor has not been installed yet. Before we can built our predictive model, we need to impute these values.  
+  
+Initially, when a simple approach of estimating a model at each sensor location with the same model specification or parameterisation, we found that it did not work very well. In particular, sensors which had a "large" proportion of missing values did not have enough data to build a good imputation model.  
+So a different model for sensors with a "large" proportion of missing values was required. 
+
+This is the proposed algorithm for imputating the pedestrian data.
+The first step is to check the proportion of missing values at each sensor for decide which type of model is used to impute missing values.  
+Then, for each sensor location, we run the appropriate generalised linear model with quasipoisson errors to fit the data.  
+If the proportion of missing values in the data is small, then we estimate a GLM model with hourly counts as a response variable and use deterministic time and date based variables as predictors.  
+If the proportion of missing values is large, then we will estimate a GLM model with hourly counts as a response variable while using neighbouring sensor counts as predictors.  
+Then using these models, we can replace missing values with the imputed values.  
+  
+For the first step, we need to fix potential false zero-count values before we can calculate the proportion of missing values. This is where we have some issues in the data where some of the pedestrian counts of zero may actually be missing values. A way to check if a zero count could be a missing value is by checking the lengths of repeated values of zero. If a sequence of zero counts is longer than 6 hours, all the values in that sequence of repeated values are flagged as missing values.
+Once the corrections to potential false zero-count values has been made, we can calculate the proportion of missing values at each sensor. Using this proportion, we classify a sensor to have either a "small" or "large" proportion of missing values based on a threshold value. We used 10% as a threshold proportion, where any sensor missing more than 10% of its data was considered to have a large proportion of missing values.
+
+When classified, we can see the geographical location of sensors with small and large proportion of missing values. We see that many sensors with large proportions of missing values are in close proximity to sensors with small proportions of missing values.  
+  
+So moving on to the next step in the algorithm, we fit models at all the sensors with a small proportion of missing values. We estimate a generalised linear model with quasipoisson errors where we include Month as a factor level with an additive effect, and two way interaction term between the time of the day and the day type. Time must be considered as a factor, not a numerical value, because hour of the day does not have a linear relationship with counts. Instead of using the day of the week, day type is used, where the weekdays Tuesday, Wednesday and Thursday are presumed to have the same daily pattern, which we call "midweek". The other levels the variable can take are Monday, Friday, Saturday, Sunday and Public Holiday. By collapsing the midweek days into a single factor level, we decrease the number of parameters which need to be estimated by 46.
+We use a quasipoisson distribution because we have counts data. We use this instead of a standard poisson distribution because we do not want to restrict the variance of the hourly counts to be equal to the mean of the counts. A quasipoisson regression estimates an additional parameter, theta, to allow for overdispersion of the counts data.  
+  
+Once we have estimated the model, we fill in the missing data with imputed values from the model. We need to perform this before proceeding to the next step in the algorithm.  
+  
+We need to do this because the models at the sensors with large proportions of missing values use the data from neighbouring sensors. In order for this to work, we require complete data at the neighbours, otherwise we will not be able to impute values if the neighbour's count is not observed. Therefore, the set of possible neighbours only contains sensors with a small proportion of missing values.
+For simplicity, we are using geographical neighbours as the neighbouring sensors. We define neighbours as the closest sensors by great circle distance. This is a measure of geographical distance.  
+  
+Looking at the plot of counts over time between sensors, we can see that the counts at each hour move similarly. To perform pattern matching of pedestrian counts, we need to standardise counts at the neighbours.  
+  
+When we do, we model the counts with a GLM quasipoisson model with an interaction between time and the scaled counts at the two neighbouring sensors. These scaled counts are effectively standard deviations at the neighbouring sensors, as we standardise the counts at each sensor to have mean = 0 and variance = 1.
+
+After estimating the models at each of the sensors with large proportion of missing values, we can replace their missing values with values imputed by the models. To ensure it is possible to impute these values, we needed complete data at the neighbours. As a consequence, we need to make sure we had imputed the missing values at the neighbours before being able to estimate the models and impute values.  
+  
+Implementing this imputation algorithm, we want to make the code as general as possible. This will ensure that the algorithm will work as the City of Melbourne adds more sensors around the CBD. Because we want to minimise the subjectivity if the models used for imputation, we want minimal user inputs to the algorithm. The resulting code only requires the data itself in the correct format, a threshold value for missing values proportion and the max length of repeated values. These two inputs can be viewed as tuning parameters to the algorithm, as it will affect which model is run at some sensors. We chose 10% missing value proportion as this seemed both reasonable, as well as giving sufficient number of sensors being considered to have a "small" proportion of missing values. A maximum length of 6 for repeated values is also used as we would not expect more than 6 hours of zero pedestrian activity.  
+We implement this algorithm using R and RStudio with packages: dplyr, lubridate and tidyr for data manipulation, and foreach and doSNOW for parallel computing. Parallel computing here significantly improves the performance of the algorithm in R, utilising more of the computer's capabilities and increasing efficiency.  
+  
+Here we have some preliminary results for evaluation of the imputation method. Here we have actual values plotted against fitted values at Southern Cross Station, a sensor location with a small proportion of missing values, and Southbank, a sensor location with a large proportion of missing values. The yellow line is a linear fit line, while the dashed purple line indicates a perfect fit, where predicted values are equal to actual values. 
+
+
+
+
