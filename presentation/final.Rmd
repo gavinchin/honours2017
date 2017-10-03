@@ -926,3 +926,10 @@ ggplot() + geom_histogram(aes(x = na_prop_bad*100), bins = 12) +
           theme(plot.title = element_text(hjust = 0.5))
 ```
 
+---
+## Specification of imputation models:
+Model at sensors with small proportion of missing values
+$$E[HourlyCounts_{sensor, t}|.] = \exp \{ \beta_{0, sensor} + \sum_{j = 1}^{11}(\beta_{1,j,sensor}Month^j_{t}) + \sum_{k = 1}^{23}(\beta_{2,k,sensor}Time_{t})$$
+
+$$+\sum_{l = 1}^{5}(\beta_{3,l,sensor}DayType_t) + \sum_{k = 1}^{23} \sum_{l = 1}^{5} (\beta_{4,k,l,sensor}Time_t DayType_t) \} \qquad \forall \mathtt{NA}_{prop}(sensor) < \mathtt{threshold}$$
+

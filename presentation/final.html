@@ -305,6 +305,13 @@ class: inverse, center
 ## Proportion of missing values prior to correction:
 
 &lt;img src="final_files/figure-html/unnamed-chunk-25-1.png" width="504" style="display: block; margin: auto;" /&gt;
+
+---
+## Specification of imputation models:
+Model at sensors with small proportion of missing values
+`$$E[HourlyCounts_{sensor, t}|.] = \exp \{ \beta_{0, sensor} + \sum_{j = 1}^{11}(\beta_{1,j,sensor}Month^j_{t}) + \sum_{k = 1}^{23}(\beta_{2,k,sensor}Time_{t})$$`
+
+`$$+\sum_{l = 1}^{5}(\beta_{3,l,sensor}DayType_t) + \sum_{k = 1}^{23} \sum_{l = 1}^{5} (\beta_{4,k,l,sensor}Time_t DayType_t) \} \qquad \forall \mathtt{NA}_{prop}(sensor) &lt; \mathtt{threshold}$$`
     </textarea>
 <script src="https://remarkjs.com/downloads/remark-latest.min.js"></script>
 <script>var slideshow = remark.create({
