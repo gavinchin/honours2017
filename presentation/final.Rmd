@@ -905,4 +905,24 @@ ggplot() + geom_histogram(aes(x = MAE_tr), binwidth = 0.05) +
  
 $$MARE_{sensor} =  \frac{1}{T^2} \frac{\sum_{t=1}^T \vert \widehat{\text{HourlyCounts}}_{sensor,t} - \text{HourlyCounts}_{sensor,t} \vert}{\sum_{t=1}^T \text{HourlyCounts}_{sensor,t}}$$
 
- 
+---
+## Proportion of missing values prior to correction:
+
+```{r, fig.retina = 3, fig.align= 'center'}
+na_prop_bad <- numeric()
+
+for (i in unique(ped_data$Sensor)){
+  na_prop_bad[i] <- sum(is.na(original_df[, i])) / n_obs
+}
+
+ggplot() + geom_histogram(aes(x = na_prop_bad*100), bins = 12) +
+          xlab("Percentage of Missing Values (%)") +
+          ylab("Number of Sensors") + theme_minimal() +
+          geom_vline(xintercept = 10, size = 2,
+                     colour = 'red') +
+          geom_text(aes(label = "10% Threshold", x = 10, y = 1),
+                    colour = "white") +
+          ggtitle("Histogram of Proportions of Missing Values \n during 2014 - 2016 prior to correction") +
+          theme(plot.title = element_text(hjust = 0.5))
+```
+
