@@ -80,6 +80,8 @@ dfa$HDay <- ifelse(dfa$IsHDay == 1, "Holiday", dfa$Day)
 original_df <- dfa
 dfa <- filter(dfa, Date_Time < "2017-01-01")
 ori_2 <- filter(original_df, Date_Time < "2017-01-01")
+ori_ts <- filter(original_df, Date_Time > "2016-12-31")
+ori_ts2 <- ori_ts
 ```
 ## Background  
 
@@ -528,7 +530,7 @@ p2 <- ggplot(tr_dat_sc %>% filter(Date_Time < "2017-03-02",
 ```
 
 
-```{r, echo = FALSE, message=FALSE, warning=F, fig.width=10, fig.height=5}
+```{r, echo = FALSE, message = FALSE, warning = F, fig.width = 8, fig.height = 4}
 grid.arrange(p1, p2, ncol = 1)
 ```
 
@@ -675,22 +677,26 @@ p2 <- ggplot(mare_df) + geom_density(aes(x = mare, fill = model,
 p3 <- ggplot() + geom_point(aes(x = MARE_base_glm_tr, y = MARE_tr,
                                 colour = (MARE_tr<MARE_base_glm_tr))) +
       geom_abline(aes(slope = 1, intercept = 0)) +
-      scale_colour_viridis(discrete = TRUE, name = "Improved Model is better") +
+      scale_colour_viridis(discrete = TRUE, option = "C",
+                           begin = 0.15, end = 0.85,
+                           direction = -1,
+                           name = "Improved Model is better") +
       theme_minimal() + labs(x = "Simple MARE", y = "Improved MARE") +
       theme(aspect.ratio = 1, legend.position = "bottom",
             legend.direction = "vertical")
 ```
 
-```{r, fig.height=3.5, fig.width=9, fig.cap="Distribution of in-sample (2014-2016 data) MARE by imputation model"}
+```{r, fig.height=3.5, fig.width=9, fig.cap = paste("Distribution of in-sample (2014-2016 data) MARE by imputation model")}
 
 grid.arrange(p1, p2, p3, nrow = 1)
 
 ```
 
+While it is not very clear when comparing the distribution of in-sample MARE between imputation models, when we compare the in-sample MARE at each location we can see that the majority of locations had better in-sample fit with the improved model using the algorithm. We do see that some locations did have worse in-sample fit, but overall we see improvement with `r sum(MARE_base_glm_tr > MARE_tr)` having better fit with the improved model over the simple model. 
 
-Focusing on the date 04/07/2014, which has 3 hours of missing data:  
+Focusing on the date 04/07/2014, which has 3 hours of missing data at Southern Cross Station:  
 
-```{r, fig.cap="A plot of the pedestrian counts at Southern Cross Station. The black line is the observed counts, where the red line is the imputed counts."}
+```{r, fig.height = 2, fig.width = 5, fig.align='center', fig.cap="A plot of the pedestrian counts at Southern Cross Station. The black line is the observed counts, where the yellow line is the imputed counts."}
 fit_dat_plot <- data.frame(Date_Time = dfa2$Date_Time,
                            fit_ = dfa2$`Southern Cross Station`) %>%
                   filter(Date_Time < "2014-07-06 00:00:00",
@@ -699,15 +705,153 @@ fit_dat_plot <- data.frame(Date_Time = dfa2$Date_Time,
 
 ggplot(original_df %>%  filter(Date_Time < "2014-07-06 00:00:00",
                                Date_Time > "2014-07-04 12:00:00")) +
-  geom_line(aes(x = Date_Time, y = fit_dat_plot), colour = 'red',
+  geom_line(aes(x = Date_Time, y = fit_dat_plot), colour = viridis(3)[3],
             size = 2) +
   geom_line(aes(x = Date_Time, y = `Southern Cross Station`),
             size  = 2) +
   theme_minimal() + xlab("Time") +
-  ylab("Pedestrian Counts at Southern Cross Station") +
-  ggtitle("Pedestrian Counts at Southern Cross Station on 04/07/2014 - 05/07/2014")
+  ylab("Pedestrian Counts") +
+  ggtitle("Pedestrian Counts at Southern Cross Station \n on 04/07/2014 - 05/07/2014") +
+  theme(plot.title = element_text(hjust = 0.5)) 
+```
+
+More importantly, we can evaluate the performance of the model on the out of sample observations (2017 data). Due to potential false zero counts in the test data sourced from `rwalkr::walk_melb()`, we need to again apply the correction by long sequences of repeated values to be able to properly evaluate the goodness of fit of out-of-sample observations.
+
+```{r ts_fix0}
+for(i in unique(ped_data$Sensor)){
+    ori_ts[is.na(ori_ts[, i]), i] <- 0
+    na_length_check <- rle(as.numeric(unlist(ori_ts[,i])))
+    maybeNA <- rep((na_length_check$lengths > threshold_miss_hrs), times = na_length_check$lengths)
+    rl <- ori_ts[, i] %>% unlist %>% rle()
+    ori_ts[maybeNA, i] <- NA
+    defsNA <- is.na(ori_ts2[, i])
+    ori_ts[defsNA, i] <- NA
+  }
 ```
 
 
+```{r test_fit}
+test_base <- list()
+test_fit <- list()
+ts <- original_df %>% filter(Date_Time > "2016-12-31")
+ 
+ for(i in unique(ped_data$Sensor)){
+    test_base[[i]] <- predict.glm(models_base[[i]], newdata = ts,
+                                  type = "response")
+ }
 
+ for(i in small_miss_sensors){
+   test_fit[[i]]  <- predict.glm(models[[i]], newdata = ts,
+                                 type = "response")
+ }
+ for(i in large_miss_sensors){
+   sensor_dists <- numeric()
+  for (j in small_miss_sensors){
+      dists <- gcd.slc(loc[i,]$lons, loc[i,]$lats, loc[j,]$lons, loc[j,]$lats)
+      sensor_dists[j] <- dists
+  }
+  names(sensor_dists) <- small_miss_sensors
+  closest_sensor <- sensor_dists %>% sort %>%
+                    head(2) %>% names
+  close_df_scale <- ts[, closest_sensor[1]] %>% unlist %>% scale
+  close_df_scale2 <- ts[, closest_sensor[2]] %>% unlist %>% scale
+  
+  ts_sc <- data.frame(close_df_scale, close_df_scale2, Time = ts$Time)
+  
+  test_fit[[i]] <- predict.glm(models[[i]], newdata = ts_sc,
+                               type = "response")
+  
+ }
+
+MARE_base_ts <- numeric()
+for (i in unique(ped_data$Sensor)){
+  MARE_base_ts[i] <- mean(abs(test_base[[i]] - unlist(ori_ts[, i])), na.rm = T) / mean(unlist(ori_ts[, i]), na.rm = T)
+}
+
+MARE_ts <- numeric()
+for (i in unique(ped_data$Sensor)){
+  MARE_ts[i] <- mean(abs(test_fit[[i]] - unlist(ori_ts[, i])), na.rm = T) / mean(unlist(ori_ts[, i]), na.rm = T)
+}
+```
+
+Again, we start by comparing the fit at a sensor location with a small proportion of missing values, Vic Arts Centre:
+```{r, fig.height=4, fig.width=9, fig.cap = "A plot of the out-of-sample (2017) Actual vs Predicted pedestrian counts at Melbourne Central (sensor location with small proportion of missing values) for the simple GLM model and the improved GLM model. The dashed line is $x=y$, representing a reference for perfect fit, while solid line is the linear fit of the points."}
+p1 <- ggplot(data = NULL, aes(x = ori_ts[, "Melbourne Central"],
+           y = test_base$`Melbourne Central`)) +
+           geom_point(alpha = 0.05) +
+           geom_abline(aes(slope = 1, intercept = 0),
+                       colour = viridis(3)[1],
+                       alpha = 0.7, size = 1.25,
+                       linetype = 2) +
+           geom_smooth(method = "lm", size = 1.25, alpha = 0.7, 
+                       colour = viridis(3)[3]) +
+           theme_minimal() + 
+           theme(aspect.ratio = 1,
+                 plot.title = element_text(hjust = 0.5)) +
+           scale_x_continuous(limits = c(0, 4000)) +
+           scale_y_continuous(limits = c(0, 4000)) +
+           xlab("Actual Pedestrian Count") +
+           ylab("Predicted Pedestrian Count") +
+           ggtitle("Simple GLM Model: Actual v. Predicted \n at Melbourne Central")
+p2 <- ggplot(data = NULL, aes(x =ori_ts[, "Melbourne Central"],
+           y = test_fit$`Melbourne Central`)) +
+           geom_point(alpha = 0.05) +
+           geom_abline(aes(slope = 1, intercept = 0),
+                       colour = viridis(3)[1],
+                       alpha = 0.7, size = 1.25,
+                       linetype = 2) +
+           geom_smooth(method = "lm", size = 1.25, alpha = 0.7, 
+                       colour = viridis(3)[3]) +
+           theme_minimal() + 
+           theme(aspect.ratio = 1,
+                 plot.title = element_text(hjust = 0.5)) +
+           scale_x_continuous(limits = c(0, 4000)) +
+           scale_y_continuous(limits = c(0, 4000)) +
+           xlab("Actual Pedestrian Count") +
+           ylab("Predicted Pedestrian Count") +
+           ggtitle("Improved GLM Model: Actual v. Predicted \n at Melbourne Central")
+grid.arrange(p1, p2, nrow = 1)
+```
+
+We find that the out-of-sample predictions of at Melbourne Central by the simple model has a tendency to underestimate the pedestrian counts. By comparison, the predictions made by the improved imputation model does not underestimate the counts as much. Comparing the out-of-sample MARE between models at Melbourne Central, MARE decreases from `r round(MARE_base_ts["Melbourne Central"]*100, 2)`% to `r round(MARE_ts["Melbourne Central"]*100, 2)`% with the use of the improved model. 
+
+```{r, fig.height=4, fig.width=9, fig.cap = "A plot of the out-of-sample (2017) Actual vs Predicted pedestrian counts at Collins Place (South) (sensor location with large proportion of missing values) for the simple GLM model and the improved GLM model. The dashed line is $x=y$, representing a reference for perfect fit, while solid line is the linear fit of the points."}
+p1 <- ggplot(data = NULL, aes(x = ori_ts[, "Collins Place (South)"],
+           y = test_base$`Collins Place (South)`)) +
+           geom_point(alpha = 0.05) +
+           geom_abline(aes(slope = 1, intercept = 0),
+                       colour = viridis(3)[1],
+                       alpha = 0.7, size = 1.25,
+                       linetype = 2) +
+           geom_smooth(method = "lm", size = 1.25, alpha = 0.7, 
+                       colour = viridis(3)[3]) +
+           theme_minimal() + 
+           theme(aspect.ratio = 1,
+                 plot.title = element_text(hjust = 0.5)) +
+           scale_x_continuous(limits = c(0, 2500)) +
+           scale_y_continuous(limits = c(0, 2500)) +
+           xlab("Actual Pedestrian Count") +
+           ylab("Predicted Pedestrian Count") +
+           ggtitle("Simple GLM Model: Actual v. Predicted \n at Collins Place (South)")
+p2 <- ggplot(data = NULL, aes(x =ori_ts[, "Collins Place (South)"],
+           y = test_fit$`Collins Place (South)`)) +
+           geom_point(alpha = 0.05) +
+           geom_abline(aes(slope = 1, intercept = 0),
+                       colour = viridis(3)[1],
+                       alpha = 0.7, size = 1.25,
+                       linetype = 2) +
+           geom_smooth(method = "lm", size = 1.25, alpha = 0.7, 
+                       colour = viridis(3)[3]) +
+           theme_minimal() + 
+           theme(aspect.ratio = 1,
+                 plot.title = element_text(hjust = 0.5)) +
+           scale_x_continuous(limits = c(0, 2500)) +
+           scale_y_continuous(limits = c(0, 2500)) +
+           xlab("Actual Pedestrian Count") +
+           ylab("Predicted Pedestrian Count") +
+           ggtitle("Improved GLM Model: Actual v. Predicted \n at Collins Place (South)")
+grid.arrange(p1, p2, nrow = 1)
+```
+
+At a sensor location with a large proportion of missing values, Collins Place (South), we again see a tendency to underestimate counts with the simple imputation model. The improved imputation method reduces the underestimation of the predictions and provides better predictions. The MARE is greatly improved, where it decreases from `r round(MARE_base_ts["Collins Place (South)"]*100, 2)`% to `r round(MARE_ts["Collins Place (South)"]*100, 2)`% with the use of the improved model. 
 
