@@ -18,6 +18,9 @@ library(doSNOW)
 library(rwalkr)
 library(pander)
 library(RColorBrewer)
+library(gridExtra)
+library(viridis)
+library(ggmap)
 ```
 
 ```{r data_loading, warning=F, message=F}
@@ -233,37 +236,64 @@ for(i in unique(ped_data$Sensor)){
     run_lengths[[i]] <- rl
   }
 
+ori_2 <- dfa
+
 run_lengths %>% lapply(., `[[`, 1) %>%
     unlist -> sequences
 
 pander(summary(sequences[sequences > 1]))
-
-# ggplot() + geom_boxplot(aes(y = sequences, x = "A"), alpha = 0.2) +
-#     xlab(NULL) + ylab("Length of same counts value") +
-#     theme(axis.text.x = element_blank(),
-#           axis.ticks.x = element_blank(),
-#           axis.title.x = element_blank()) +
-#     theme_minimal()
 ```
+Table: Summary statistics of the sequence lengths of repeated values
 
-Instead, a simple check we can implement is to look for long sequences of zero counts. For example, we may want to classify any sequence of `Hourly_Counts = 0` running for longer than 24 hours as being considered `NA`. From the summary of lengths of repeated values (which are repeated at least once), we see that the distribution of the lengths are very positively skewed. With a mean length of `r round(mean(sequences[sequences > 1]), 2)` hours of missing data. Classifying any sequence of repeated values, typically 0, which has a length greater than 24 as `NA` should allow true zero counts to avoid being misclassified as `NA`.  
+Instead, a simple check we can implement is to look for long sequences of zero counts. For example, we may want to classify any sequence of `Hourly_Counts = 0` running for longer than 24 hours as being considered `NA`. From the summary of lengths of repeated values (which are repeated at least once), we see that the distribution of the lengths are very positively skewed with a mean length of `r round(mean(sequences[sequences > 1]), 2)` hours of missing data. Classifying any sequence of repeated values, typically 0, which has a length greater than 6 as `NA` should allow true zero counts to avoid being misclassified as `NA`. We select the length of 6 hours as it would be unreasonable to assume any sensor location to have the exact same number of pedestrian counts over such a long period. 
 
-After we have replaced questionable zero values with `NA`, we can calculate the proportion of missing values for each sensor location. From these calculated proportion, we can classify sensors as either having a "large" or "small" proportion of missing values, where large is defined as $\mathtt{NAprop}_{sensor} > \mathtt{threshold}$ and `threshold = 0.05`.  
+After we have replaced questionable zero values with the value `NA`, we can calculate the proportion of missing values for each sensor location. From these calculated proportion, we can classify sensors as either having a "large" or "small" proportion of missing values, where large is defined as $\mathtt{NAprop}_{sensor} > \mathtt{threshold}$ and `threshold = 0.1`.  
 
-```{r}
+```{r na_prop_compute}
 na_prop <- numeric()
 
 for (i in unique(ped_data$Sensor)){
   na_prop[i] <- sum(is.na(dfa[, i])) / n_obs
 }
 
+na_prop_pre <- numeric()
+
+for (i in unique(ped_data$Sensor)){
+  na_prop_pre[i] <- sum(is.na(ori_2[, i])) / n_obs
+}
+
 large_miss_sensors <- names(na_prop[na_prop > threshold])
 small_miss_sensors <- setdiff(names(na_prop), large_miss_sensors)
 ```
 
+```{r naprop_hist, fig.width=9, fig.height=4, fig.cap="Comparison of distribution of proportion of missing values at each sensor is significantly different after correcting for false zero counts in the data"}
+theme_g <- theme_minimal() +
+           theme(plot.title = element_text(hjust = 0.5,
+                                           size = 10))
+p1 <- ggplot() + geom_histogram(aes(x = na_prop*100), bins = 12) +
+          xlab("Percentage of Missing Values (%)") +
+          ylab("Number of Sensors") + theme_g +
+          geom_vline(xintercept = 10, size = 2,
+                     colour = 'red') +
+          geom_label(aes(label = "10% Threshold", x = 16, y = 25),
+                    colour = "white", fill = 'black', alpha = 0.4) +
+          scale_y_continuous(limits = c(0,35)) +
+          ggtitle("Histogram of Proportions of Missing Values \n during 2014 - 2016")
+p2 <- ggplot() + geom_histogram(aes(x = na_prop_pre*100), bins = 12) +
+          xlab("Percentage of Missing Values (%)") +
+          ylab("Number of Sensors") + theme_g +
+          geom_vline(xintercept = 10, size = 2,
+                     colour = 'red') +
+          geom_label(aes(label = "10% Threshold", x = 16, y = 25),
+                    colour = "white", fill = 'black', alpha = 0.4) +
+          scale_y_continuous(limits = c(0,35)) +
+          ggtitle("Histogram of Proportions of Missing Values \n during 2014 - 2016 prior to false zero counts fix")
+grid.arrange(p2, p1, nrow = 1)
+```
+
 Because the models for the sensors with a large proportion of missing values rely on having neighbouring sensors having complete cases (no missing values), we want to impute these values first. This will then allow us to have as much information to be available for the models which use neighbouring sensors to to train on.
 
-For sensors with a small proportion of missing values, we use a GLM quasi-poisson model again. To improve on the previous model used, we use the model:
+For sensors with a small proportion of missing values, we use a GLM quasipoisson model. To improve on the previous model used, we use the model:
 $$E \left[\text{HourlyCounts} \vert  \text{Sensor}, \text{Month}, \text{DayType}, \text{Time} \right] = \exp (\mu_{\text{Sensor}, \text{Month}, \text{DayType}, \text{Time}}) $$
 
 $$\text{where } \quad \mu_{\text{Sensor}, \text{Month}, \text{DayType}, \text{Time}} \sim \text{Month} + \text{Time}\times \text{DayType} \tag{2}$$
@@ -306,6 +336,74 @@ Instead of `HDay`, we use `DayType` which classifies Tuesday, Wednesday and Thur
 
 Using these estimated models, we impute the missing values to produce complete data at all these sensor locations. For the locations with high proportions of missing values can be predicted using the now complete data from all the locations which had a small proportion of missing values. Using a threshold of 10%, this gives us `r length(small_miss_sensors)` sensor locations to use.  
 
+```{r, fig.width=4, fig.height=4, fig.align='center', fig.cap = "Map showing the algorithm selecting Flinders St Station Underpass and Sandridge Bridge as neighbours to be used to predict the pedestrian counts at Southbank"}
+ped_loc <- read_csv("../data/Pedestrian_sensor_locations.csv")
+lats <- ped_loc$Latitude
+lons <- ped_loc$Longitude
+ids <- ped_loc$`Sensor Description`
+
+{
+ids[ids == "Flinders Street Station Underpass"] <- "Flinders St Station Underpass"
+ids[ids == "Flinders St-Spark La"] <- "Flinders St-Spark Lane"
+ids[ids == "Queen St (West)"] <-  "Queen Street (West)"
+ids[ids == "The Arts Centre"] <- "Vic Arts Centre"
+ids[ids == "Lonsdale St-Spring St (West)"] <- "Spring St-Lonsdale St (South)"
+ids[ids == "Lygon St (East)"] <- "Lygon Street (East)"
+ids[ids == "QV Market-Elizabeth St (West)"] <- "QV Market-Elizabeth (West)"
+ids[ids == "Melbourne Convention Exhibition Centre"] <- "Convention/Exhibition Centre"
+ids[ids == "St Kilda Rd-Alexandra Gardens"] <- "St. Kilda-Alexandra Gardens"
+}
+loc <- data.frame(lons, lats, ids)
+rownames(loc) <- ids
+loc <- loc %>% mutate(cl = ifelse((loc$ids %in% small_miss_sensors),
+                                  "Small", "Large"))
+rownames(loc) <- loc$ids
+
+melb3 <- get_map(location = c(loc["Southbank",]$lons,
+                              loc["Southbank",]$lats),
+                 zoom = 17, maptype = "roadmap")
+
+sens_lines_lon <- as.numeric(c(loc["Flinders St Station Underpass",]$lons,
+                loc["Southbank",]$lons,
+                loc["Sandridge Bridge",]$lons))
+
+sens_lines_lat <- as.numeric(c(loc["Flinders St Station Underpass",]$lats,
+                loc["Southbank",]$lats,
+                loc["Sandridge Bridge",]$lats))
+
+sens_lines <- data.frame(lon = sens_lines_lon,
+                         lat = sens_lines_lat)
+options(na.action = 'na.omit')
+ggmap(melb3) + geom_line(aes(x = lon, y = lat),
+                        data = sens_lines, size = 2.5,
+                        colour = viridis(3)[2], alpha = 0.5) +
+               geom_point(aes(x = lons, y = lats, colour = cl),
+                          size = 8,
+                          data = loc) +
+               scale_colour_viridis(discrete = TRUE,
+                                    name = "Sensor NA Prop.",
+                                    begin = 0.5, end = 0) +
+               geom_point(aes(x = loc["Southbank",]$lons,
+                              y = loc["Southbank",]$lats),
+                          size = 16, colour = viridis(3)[2]) +
+               geom_label(aes(label = ids, x = lons, y = lats,
+                              fill = cl),
+                         fontface = 'bold', colour = 'white',
+                         data = loc, size = 3.5,
+                         nudge_y = -0.000325) +
+              scale_fill_viridis(discrete = TRUE,
+                                  name = "Sensor NA Prop.",
+                                  begin = 0.5, end = 0) +
+              xlab(NULL) + ylab(NULL) +
+              theme(plot.title = element_text(hjust = 0.5),
+                    plot.caption = element_text(hjust = 0.5),
+                    axis.text.x = element_blank(),
+                    axis.text.y = element_blank(),
+                    axis.ticks = element_blank(),
+                    legend.position = c(.8,0.2))
+```
+
+
 For each of the sensor locations with high proportions of missings, we need to decide which sensor to use for prediction. A simple method of finding a geographical closest neighbour is to take the haversine/great-circle distance between the sensor to be imputed and all the possible candidates.
 ```{r, message=F}
 # Calculates the geodesic distance between two points specified by radian latitude/longitude using the
@@ -316,11 +414,6 @@ gcd.slc <- function(long1, lat1, long2, lat2) {
   d <- acos(sin(lat1)*sin(lat2) + cos(lat1)*cos(lat2) * cos(long2-long1)) * R
   return(d) # Distance in km
 }
-
-ped_loc <- read_csv("../data/Pedestrian_sensor_locations.csv")
-lats <- ped_loc$Latitude
-lons <- ped_loc$Longitude
-ids <- ped_loc$`Sensor Description`
 
 ## name fix dictionary
 {
@@ -372,45 +465,125 @@ for (i in large_miss_sensors){
 ```
 
 Using the two geographically closest sensors with complete cases, we use another GLM specified as:
-$$E \left[ \text{HourlyCounts}_{\text{sensor}} \vert \text{Time}, \text{HourlyCounts}_{\text{closest sensors}} \right] = \mu_{\text{Time}, \text{HourlyCounts}_{\text{closest sensors}}}$$
-$$\text{where } \quad  \mu_{\text{Time}, \text{HourlyCounts}_{\text{closest sensors}}} \sim \text{Time} \times \text{HourlyCounts}_{\text{closest sensor 1}} + \text{Time} \times \text{HourlyCounts}_{\text{closest sensor 2}}$$
+$$E \left[ \text{HourlyCounts}_{\text{sensor}} \vert \text{Time}, \text{HourlyCounts}_{\text{neighbours}} \right] = \mu_{\text{Time}, \text{HourlyCounts}_{\text{neighbours}}}$$
+$$\text{where } \quad  \mu_{\text{Time}, \text{HourlyCounts}_{\text{neighbours}}} \sim \text{Time} \times \text{HourlyCounts}_{\text{neighbour 1}}^{SC} + \text{Time} \times \text{HourlyCounts}_{\text{neighbour 2}}^{SC}$$
 
 We would expect that the amount of people passing through the neighbouring sensors will be a strong predictor of the pedestrian counts as they are likely to also pass through. Using geographical neighbours, we can capture rare events effectively. Any large shocks to the counts at the neighbouring sensors will have an effect on the counts to be imputed.
 
-In order to use a mixture of the patterns from two different sensors, we need to use the scaled counts at the neighbouring sensors to avoid the magnitude of the counts having an effect on the predicted counts. We scale the counts by standardising to $\mu = 0, \sigma^2 = 1$. Because the covariance with neighbouring sensors may differ over time, we also add an interaction term between the neighbouring sensor counts and the time of the day.
+```{r, echo = FALSE, message=FALSE, warning=F, include=FALSE}
+i <- "Southbank"
+  sensor_dists <- numeric()
+  for (j in small_miss_sensors){
+      dists <- gcd.slc(loc[i,]$lons, loc[i,]$lats, loc[j,]$lons, loc[j,]$lats)
+      sensor_dists[j] <- dists
+  }
+  names(sensor_dists) <- small_miss_sensors
+  closest_sensor <- sensor_dists %>% sort %>%
+                    head(2) %>% names
+  dfa3 <- original_df %>% filter(Date_Time > "2017-01-01")
+  close_df <- dfa3[, closest_sensor[1]] %>% unlist
+  close_df2 <- dfa3[, closest_sensor[2]] %>% unlist
+  
+  close_dfsc <- scale(close_df)
+  close_dfsc2 <- scale(close_df2)
+
+  
+  sensor_df <- dfa3[, i] %>% unlist
+  sensor_dfsc <- scale(sensor_df)
+  
+  tr_dat <- data.frame(sensor_df, close_df, close_df2,
+                       Time = as.integer(dfa3$Time),
+                       Date_Time = dfa3$Date_Time,
+                       HDay = dfa3$HDay) %>%
+            gather(key = Sensor, value = Count, sensor_df:close_df2)
+  
+  tr_dat_sc <- data.frame(sensor_dfsc, close_dfsc, close_dfsc2,
+                       Time = as.integer(dfa3$Time),
+                       Date_Time = dfa3$Date_Time,
+                       HDay = dfa3$HDay) %>%
+            gather(key = Sensor, value = Count, sensor_dfsc:close_dfsc2)
+  
+p1 <- ggplot(tr_dat %>% filter(Date_Time < "2017-03-02",
+                         Date_Time > "2017-02-26")) +
+      geom_line(aes(x = Date_Time, y = Count,
+                    colour = Sensor), size = 2) +
+      scale_colour_viridis(discrete = TRUE,
+                           labels = c("Neighbour 1 (Flinders St Station Underpass)",
+                                      "Neighbour 2 (Sandridge Bridge)",
+                                      "Target (Southbank)")) +
+      xlab("Time") + theme_minimal() + ggtitle("Unscaled Neighbours") +
+      theme(legend.position = "none", plot.title = element_text(hjust = 0.5))
+      
+p2 <- ggplot(tr_dat_sc %>% filter(Date_Time < "2017-03-02",
+                         Date_Time > "2017-02-26")) +
+      geom_line(aes(x = Date_Time, y = Count,
+                    colour = Sensor), size = 2) +
+      scale_colour_viridis(discrete = TRUE,
+                           labels = c("Neighbour 1 (Flinders St Station Underpass)",
+                                      "Neighbour 2 (Sandridge Bridge)",
+                                      "Target (Southbank)")) +
+      xlab("Time") + ggtitle("Scaled/Stadardised Neighbours") +
+      ylab("Standard Deviations") + theme_minimal() +
+      theme(legend.position = "bottom", plot.title = element_text(hjust = 0.5))
+```
+
+
+```{r, echo = FALSE, message=FALSE, warning=F, fig.width=10, fig.height=5}
+grid.arrange(p1, p2, ncol = 1)
+```
+
+In order to use a mixture of the patterns from two different sensors, we need to use the scaled counts at the neighbouring sensors to avoid the magnitude of the counts having an effect on the predicted counts. We scale the counts by standardising to $\mu = 0, \sigma^2 = 1$. Because the covariance with neighbouring sensors may vary over time, we also add an interaction term between the neighbouring sensor counts and the time of the day. 
 
 ## Imputation Results  
 
 Firstly, we evaluate the initial model used to impute:
 $$\text{where } \quad \mu_{\text{Sensor}, \text{HDay}, \text{Time}} \sim \text{Time}\times \text{HDay} \tag{1}$$
 
-Note, this is also before the adjustments made to treat suspiciously long sequences of 0 values as `NA`. 
+Note, this is also after the adjustments made to treat suspiciously long sequences of 0 values as `NA` in the actual counts. The simple GLM model is trained before this correction, while the improved model is trained on the adjusted data.
 
 For the purposes of evaluating the imputation method at a location with a small proportion of missing values, we will first look at the counts from Southern Cross Station. At this sensor, the proportion of missing values (adjusted) is `r round(na_prop["Southern Cross Station"]*100,2)`Firstly, we evaluate the goodness of fit of the predictions made within the training period (01/01/2014 to 31/12/2016).
 
-```{r}
-ggplot(data = NULL, aes(x = original_df %>% 
+```{r, fig.height=4, fig.width=9, fig.cap = "A plot of the in-sample Actual vs Predicted pedestrian counts at Southern Cross Station (sensor location with small proportion of missing values) for the simple GLM model and the improved GLM model. The dashed line is $x=y$, representing a reference for perfect fit, while solid line is the linear fit of the points."}
+p1 <- ggplot(data = NULL, aes(x = original_df %>% 
              filter(Date_Time < "2017-01-01") %>%
              .[, "Southern Cross Station"],
            y = fitted_base$`Southern Cross Station`)) +
            geom_point(alpha = 0.05) +
            geom_abline(aes(slope = 1, intercept = 0),
-                       colour = brewer.pal(3, 'Dark2')[1],
-                       alpha = 0.7, size = 1.5,) +
-           geom_smooth(method = "lm", size = 1.5, alpha = 0.7, 
-                       colour = brewer.pal(3, 'Dark2')[2]) +
-           theme_minimal() + theme(aspect.ratio = 1) +
+                       colour = viridis(3)[1],
+                       alpha = 0.7, size = 1.25,
+                       linetype = 2) +
+           geom_smooth(method = "lm", size = 1.25, alpha = 0.7, 
+                       colour = viridis(3)[3]) +
+           theme_minimal() + 
+           theme(aspect.ratio = 1,
+                 plot.title = element_text(hjust = 0.5)) +
            scale_x_continuous(limits = c(0, 4000)) +
            scale_y_continuous(limits = c(0, 4000)) +
            xlab("Actual Pedestrian Count") +
            ylab("Predicted Pedestrian Count") +
-           ggtitle("Actual against Predicted Counts at Southern Cross Station")
-           
+           ggtitle("Simple GLM Model: Actual v. Predicted \n at Southern Cross Station")
+p2 <- ggplot(data = NULL, aes(x = original_df %>% 
+             filter(Date_Time < "2017-01-01") %>%
+             .[, "Southern Cross Station"],
+           y = fitted_data$`Southern Cross Station`)) +
+           geom_point(alpha = 0.05) +
+           geom_abline(aes(slope = 1, intercept = 0),
+                       colour = viridis(3)[1],
+                       alpha = 0.7, size = 1.25,
+                       linetype = 2) +
+           geom_smooth(method = "lm", size = 1.25, alpha = 0.7, 
+                       colour = viridis(3)[3]) +
+           theme_minimal() + 
+           theme(aspect.ratio = 1,
+                 plot.title = element_text(hjust = 0.5)) +
+           scale_x_continuous(limits = c(0, 4000)) +
+           scale_y_continuous(limits = c(0, 4000)) +
+           xlab("Actual Pedestrian Count") +
+           ylab("Predicted Pedestrian Count") +
+           ggtitle("Improved GLM Model: Actual v. Predicted \n at Southern Cross Station")
+grid.arrange(p1, p2, nrow = 1)
 ```
-
-\begin{center}
-\textbf{Figure }:  A plot of the Actual vs Predicted pedestrian counts at Southern Cross Station. The green line is $x=y$, representing a reference for perfect fit, while orange line is the linear fit.  
-\end{center}
 
 Visually, we can see that the fitted values are good estimates as the relationship between the actuals vs fitted is very close to 1:1. This is seen when we perform a least squares estimate of $\widehat{Fitted}_t = \hat{\beta}_0 + \hat{\beta}_1 Actual_t$, and the estimated $\hat{\beta}_0$ is close to 0 and $\hat{\beta}_1$ is close to 1. 
 
@@ -419,25 +592,53 @@ Here we see that the GLM model with only time and date based variables work well
 However, if we try to use this same model specification at sensor locations with large proportions of missing values, the fit is poor. We use the sensor at Australia on Collins, where the proportion of missing values is `r round(na_prop["Australia on Collins"]*100, 2)`%. 
 ```{r}
 options(na.action = na.omit)
-ggplot(data = NULL, aes(x = original_df[-(is.na(original_df$`Australia on Collins`)), ] %>% 
+p1 <- ggplot(data = NULL, aes(x = ori_2[-(is.na(ori_2$`Australia on Collins`)), ] %>% 
              filter(Date_Time < "2017-01-01") %>%
-             .[, "Australia on Collins"],
-           y = fitted_base$`Australia on Collins`[-(is.na(original_df$`Australia on Collins`))])) +
-           geom_point(alpha = 0.05) +
+             .[, "Australia on Collins"])) +
+           geom_point(aes(y = fitted_base$`Australia on Collins`[-(is.na(ori_2$`Australia on Collins`))]),
+                      alpha = 0.05) +
            geom_abline(aes(slope = 1, intercept = 0),
-                       colour = brewer.pal(3, 'Dark2')[1],
-                       alpha = 0.7, size = 1.5) +
-           geom_smooth(method = "lm", size = 1.5, alpha = 0.7, 
-                       colour = brewer.pal(3, 'Dark2')[2]) +
-           theme_minimal() + theme(aspect.ratio = 1) +
+                       colour = viridis(3)[1],
+                       alpha = 0.7, size = 1.25,
+                       linetype = 2) +
+           geom_smooth(aes(y = fitted_base$`Australia on Collins`[-(is.na(ori_2$`Australia on Collins`))]),
+                       method = "lm", size = 1.25, alpha = 0.7, 
+                       colour = viridis(3)[3]) +
+           theme_minimal() + theme(aspect.ratio = 1,
+                                   plot.title = element_text(hjust = 0.5)) +
            scale_x_continuous(limits = c(0, 4000)) +
            scale_y_continuous(limits = c(0, 4000)) +
            xlab("Actual Pedestrian Count") +
            ylab("Predicted Pedestrian Count") +
-           ggtitle("Actual against Predicted Counts at Australia on Collins")
-           
+           ggtitle("Simple GLM Model: Actual v. Predicted \n at Australia on Collins")
+p2 <- ggplot(data = NULL, aes(x = ori_2[-(is.na(ori_2$`Australia on Collins`)), ] %>% 
+             filter(Date_Time < "2017-01-01") %>%
+             .[, "Australia on Collins"])) +
+           geom_point(aes(y = fitted_data$`Australia on Collins`[-(is.na(ori_2$`Australia on Collins`))]),
+                      alpha = 0.05) +
+           geom_abline(aes(slope = 1, intercept = 0),
+                       colour = viridis(3)[1],
+                       alpha = 0.7, size = 1.25,
+                       linetype = 2) +
+           geom_smooth(aes(y = fitted_data$`Australia on Collins`[-(is.na(ori_2$`Australia on Collins`))]),
+                       method = "lm", size = 1.25, alpha = 0.7, 
+                       colour = viridis(3)[3]) +
+           theme_minimal() + theme(aspect.ratio = 1,
+                                   plot.title = element_text(hjust = 0.5)) +
+           scale_x_continuous(limits = c(0, 4000)) +
+           scale_y_continuous(limits = c(0, 4000)) +
+           xlab("Actual Pedestrian Count") +
+           ylab("Predicted Pedestrian Count") +
+           ggtitle("Improved GLM Model: Actual v. Predicted \n at Australia on Collins")
 ```
-We can see that the model is heavily biased by the false 0 values, causing the predicted values to be underestimate (slope of the fitted line is $<1$). This demonstrates the importance of ensuring outliers are removed from the data. 
+
+```{r, fig.height=4, fig.width=9, fig.cap = paste("A plot of the in-sample Actual vs Predicted pedestrian counts at Australia on Collins (sensor location with large proportion of missing values) for the simple GLM model and the improved GLM model. The dashed line is $x=y$, representing a reference for perfect fit, while solid line is the linear fit of the points.")}
+
+grid.arrange(p1, p2, nrow = 1)
+
+```
+
+We can see that the simple model has bias caused by the false zero counts, resulting in the predicted values to be underestimated. This is shown by the slope of the fitted line on the actual counts against predicted counts being $<1$, emphasising the importance of the first step taken in the algorithm of the improved model to class the false zero counts as missing values. 
 
 The criterion we will use to measure goodness of fit is MARE. It is calculated by:
 
@@ -450,14 +651,46 @@ MARE_base_glm_tr <- numeric()
 for (i in unique(ped_data$Sensor)){
   MARE_base_glm_tr[i] <- mean(abs(fitted_base[[i]] - unlist(dfa[, i])), na.rm = T) / mean(unlist(dfa[, i]), na.rm = T)
 }
-pander(data.frame(Tr_MARE = MARE_base_glm_tr))
+
+MARE_tr <- numeric()
+for (i in unique(ped_data$Sensor)){
+  MARE_tr[i] <- mean(abs(fitted_data[[i]] - unlist(dfa[, i])), na.rm = T) / mean(unlist(dfa[, i]), na.rm = T)
+}
+
+mare_df <- data.frame(simple = MARE_base_glm_tr, improved = MARE_tr, ids) %>%
+           gather(model, mare, simple:improved)
+p1 <- ggplot(mare_df) + geom_boxplot(aes(x = model, y = mare, fill = model),
+                                     width = .5, alpha = 0.5) +
+      labs(x = "Model", y = "In-Sample MARE") +
+      scale_fill_viridis(discrete = TRUE, name = "Model")
+
+p2 <- ggplot(mare_df) + geom_density(aes(x = mare, fill = model,
+                                         colour = model), adjust = 1.3,
+                                     alpha = 0.5) +
+      scale_fill_viridis(discrete = TRUE) +
+      scale_colour_viridis(discrete = TRUE) +
+      theme_minimal() + theme(plot.title = element_text(hjust = 0.5),
+                              legend.position = "none") +
+      labs(x = "In-sample MARE")
+p3 <- ggplot() + geom_point(aes(x = MARE_base_glm_tr, y = MARE_tr,
+                                colour = (MARE_tr<MARE_base_glm_tr))) +
+      geom_abline(aes(slope = 1, intercept = 0)) +
+      scale_colour_viridis(discrete = TRUE, name = "Improved Model is better") +
+      theme_minimal() + labs(x = "Simple MARE", y = "Improved MARE") +
+      theme(aspect.ratio = 1, legend.position = "bottom",
+            legend.direction = "vertical")
 ```
 
+```{r, fig.height=3.5, fig.width=9, fig.cap="Distribution of in-sample (2014-2016 data) MARE by imputation model"}
+
+grid.arrange(p1, p2, p3, nrow = 1)
+
+```
 
 
 Focusing on the date 04/07/2014, which has 3 hours of missing data:  
 
-```{r}
+```{r, fig.cap="A plot of the pedestrian counts at Southern Cross Station. The black line is the observed counts, where the red line is the imputed counts."}
 fit_dat_plot <- data.frame(Date_Time = dfa2$Date_Time,
                            fit_ = dfa2$`Southern Cross Station`) %>%
                   filter(Date_Time < "2014-07-06 00:00:00",
@@ -474,9 +707,7 @@ ggplot(original_df %>%  filter(Date_Time < "2014-07-06 00:00:00",
   ylab("Pedestrian Counts at Southern Cross Station") +
   ggtitle("Pedestrian Counts at Southern Cross Station on 04/07/2014 - 05/07/2014")
 ```
-\begin{center}
-\textbf{Figure }:  A plot of the pedestrian counts at Southern Cross Station. The black line is the observed counts, where the red line is the imputed counts.  
-\end{center}
+
 
 
 
