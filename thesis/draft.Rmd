@@ -1177,8 +1177,7 @@ ped_predict_day <- function(pred_date = today(tzone = "Australia/Melbourne"),
 ```
 
 ```{r, echo = TRUE, eval = FALSE}
-ped_predict(pred_date = "2017-10-24", t_hour = 13)
+ped_predict(pred_date = "2017-12-26", t_hour = 13, is_pub_hol = TRUE)
 ```
-This is function will return tibble (trimmed down version of `data.frame()` in R) containing the predicted counts at each sensor location for the 13th hour (13:00/1:00 PM) on 24 October 2017. This tibble can then be easily used for visualisations or analysis.  
-
-Another function which uses the `ped_predict()`, `ped_predict_day()`, returns a tibble containing the predicted counts at each sensor location for all 24 hours of the date given to predic.t
+This function will return tibble (trimmed down version of `data.frame()` in R) containing the predicted counts at each sensor location for the 13th hour (13:00/1:00 PM) on Boxing Day (26 December) 2017. This tibble can then be easily used for visualisations or analysis. Due to the lack of data on future public holiday dates, the function assumes the date given is not a public holiday unless `is_pub_hol = TRUE` is provided.  
+Another function which uses the `ped_predict()`, `ped_predict_day()`, returns a tibble containing the predicted counts at each sensor location for all 24 hours of the date given to predict.
