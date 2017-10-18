@@ -25,9 +25,11 @@ daytype <- function(date){
 #' @examples
 #' ped_predict()
 #' ped_predict("2017-12-25", 18, TRUE)
+#' 
 ped_predict <- function(pred_date = today(tzone = "Australia/Melbourne"),
                         t_hour = 12,
-                        is_pub_hol = FALSE) {
+                        is_pub_hol = FALSE,
+                        long = FALSE) {
   if(!(t_hour %in% seq(0, 23))){
     stop("Hour is not between 0:00 and 23:00. Please give hour value between 0 and 23")}
   pred_date <- ymd(pred_date)
@@ -36,7 +38,9 @@ ped_predict <- function(pred_date = today(tzone = "Australia/Melbourne"),
     }
  
   date_pred <- data.frame(Time = as.factor(t_hour)) %>%
-               mutate(DayType = daytype(pred_date),
+               mutate(DayType = ifelse(is_pub_hol,
+                                       "Holiday",
+                                       daytype(pred_date)),
                       Month = lubridate::month(pred_date ,label = TRUE, abbr = F),
                       Date = pred_date)
   
@@ -44,6 +48,10 @@ ped_predict <- function(pred_date = today(tzone = "Australia/Melbourne"),
   for(i in names(pred_model)){
     preds[i] <- predict(pred_model[[i]], newdata = date_pred, type = "response")
   }
+  if(long){
+    return(preds)
+  }
+    else
   preds_df <- data.frame("fit" = preds, "Sensor_ID" = names(preds)) %>%
     spread(Sensor_ID, fit) %>% cbind(date_pred) %>% as_tibble
   
@@ -53,9 +61,9 @@ ped_predict <- function(pred_date = today(tzone = "Australia/Melbourne"),
 ped_predict_day <- function(pred_date = today(tzone = "Australia/Melbourne"),
                             is_pub_hol = FALSE){
   day_df <- data.frame()
-      for(t in 0:23){
+      system.time(for(t in 0:23){
         t_preds <- ped_predict(pred_date, t_hour = t, is_pub_hol)
         suppressWarnings(day_df <- bind_rows(day_df, t_preds))
-      }
+      })
   return(as.tibble(day_df))
 }

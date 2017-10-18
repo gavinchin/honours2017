@@ -7,9 +7,6 @@ output:
   html_document: default
   word_document: default
 fontsize: 12pt
-header-includes:
-- \usepackage{setspace}
-- \doublespacing
 ---
 
 ```{r setup, include=FALSE}
@@ -1102,4 +1099,86 @@ $$\text{where } \quad \mu_{\text{Sensor}, \text{Month}, \text{DayType}, \text{Ti
 
 When we estimate the GLM at each sensor location with R, we only need to save the elements in the model object which are required in order to retain the functionality of R's `predict.glm()` function. Saving the entire GLM object as given by the base R `glm()` function is highly inefficient when working with large datasets. This is due to the model object providing redundancies. In particular, elements which are unnecessarily saved for our purposes: the training data, the predictors in a model matrix format (the matrix of $\mathbf{X}$ after being formatted to be used for regression, such as recoding categorical variables into dummy variables), the response variable as another vector ($\mathbf{Y}$), the fitted values of the model after estimation, the residuals of the estimates, as well as the estimated effects.  
 
-The result of removing all the unnecessary redundant data elements in the GLM object is a storage size reduction from `r mall_model_2 %>% object.size() %>% format(units = "auto")` to `r mall_model_2 %>% stripGlmLR() %>% object.size() %>% format(units = "auto")`. This is only `r round((mall_model_2 %>% stripGlmLR() %>% object.size() %>% as.numeric/ mall_model_2 %>% object.size() %>% as.numeric)*100, 2)`% of the size of the original GLM object. With `r length(unique(ped_data$Sensor))` sensors (and models), this represents a reduction in model object size from `r format((mall_model_2 %>% object.size()) * length(unique(ped_data$Sensor)), units = "auto")` to `r format((mall_model_2 %>% stripGlmLR() %>% object.size()) * length(unique(ped_data$Sensor)), units = "auto")`.
+The result of removing all the unnecessary redundant data elements in the GLM object is a storage size reduction from `r mall_model_2 %>% object.size() %>% format(units = "auto")` to `r mall_model_2 %>% stripGlmLR() %>% object.size() %>% format(units = "auto")`. This is only `r round((mall_model_2 %>% stripGlmLR() %>% object.size() %>% as.numeric/ mall_model_2 %>% object.size() %>% as.numeric)*100, 2)`% of the size of the original GLM object. With `r length(unique(ped_data$Sensor))` sensors (and models), this represents a reduction in model object size from `r format((mall_model_2 %>% object.size()) * length(unique(ped_data$Sensor)), units = "auto")` to `r format((mall_model_2 %>% stripGlmLR() %>% object.size()) * length(unique(ped_data$Sensor)), units = "auto")`.  
+
+The estimated model parameters are saved so that they can be used for on-the-fly predictions by end users without needing to estimate the model themselves. Using the estimated model parameters, we can write a new function to facilitate the predictions in an easy to use format.
+
+```{r, echo = FALSE}
+library(purrr)
+library(dplyr)
+library(tidyr)
+library(lubridate)
+library(roxygen2)
+load("../data/model_est.RData")
+
+daytype <- function(date){
+  if(!is.Date(date)){stop("Object is not a date.")}
+  x_day <- wday(date, label = TRUE, abbr = FALSE)
+  x_daytype <- ifelse(x_day == "Sunday", "Sunday",
+                ifelse(x_day == "Saturday", "Saturday",
+                ifelse(x_day == "Monday", "Monday",
+                ifelse(x_day == "Friday", "Friday",
+                          "Midweek"))))
+  return(x_daytype)
+}
+#' Predicted pedestrian counts at various sensor locations in Melbourne
+#'
+#' @param pred_date input date
+#' @param t_hour input integer
+#' @param is_pub_hol input logical
+#' @return data frame of the fitted values at each location in wide format, with time and date
+#' @export
+#' @examples
+#' ped_predict()
+#' ped_predict("2017-12-25", 18, TRUE)
+#' 
+ped_predict <- function(pred_date = today(tzone = "Australia/Melbourne"),
+                        t_hour = 12,
+                        is_pub_hol = FALSE,
+                        long = FALSE) {
+  if(!(t_hour %in% seq(0, 23))){
+    stop("Hour is not between 0:00 and 23:00. Please give hour value between 0 and 23")}
+  pred_date <- ymd(pred_date)
+  if(!is.Date(pred_date)){
+    stop(paste("Date given to predict cannot be parsed as a date. Use the date format 'yyyy-mm-dd'. Example: 25 January 2018 is '2018-01-25'."))
+    }
+ 
+  date_pred <- data.frame(Time = as.factor(t_hour)) %>%
+               mutate(DayType = ifelse(is_pub_hol,
+                                       "Holiday",
+                                       daytype(pred_date)),
+                      Month = lubridate::month(pred_date ,label = TRUE, abbr = F),
+                      Date = pred_date)
+  
+  preds <- numeric()
+  for(i in names(pred_model)){
+    preds[i] <- predict(pred_model[[i]], newdata = date_pred, type = "response")
+  }
+  if(long){
+    return(preds)
+  }
+    else
+  preds_df <- data.frame("fit" = preds, "Sensor_ID" = names(preds)) %>%
+    spread(Sensor_ID, fit) %>% cbind(date_pred) %>% as_tibble
+  
+  return(preds_df)
+}
+
+ped_predict_day <- function(pred_date = today(tzone = "Australia/Melbourne"),
+                            is_pub_hol = FALSE){
+  day_df <- data.frame()
+      system.time(for(t in 0:23){
+        t_preds <- ped_predict(pred_date, t_hour = t, is_pub_hol)
+        suppressWarnings(day_df <- bind_rows(day_df, t_preds))
+      })
+  return(as.tibble(day_df))
+}
+
+```
+
+```{r, echo = TRUE, eval = FALSE}
+ped_predict(pred_date = "2017-10-24", t_hour = 13)
+```
+This is function will return tibble (trimmed down version of `data.frame()` in R) containing the predicted counts at each sensor location for the 13th hour (13:00/1:00 PM) on 24 October 2017. This tibble can then be easily used for visualisations or analysis.  
+
+Another function which uses the `ped_predict()`, `ped_predict_day()`, returns a tibble containing the predicted counts at each sensor location for all 24 hours of the date given to predic.t
