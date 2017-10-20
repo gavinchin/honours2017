@@ -1089,9 +1089,9 @@ Removing 50% of the data using the same method, we find that the in-sample MARE 
 
 # Predictive Model
 
-For the purpose of prediction, we want to use the most simplistic model possible to make quick predictions of the expected pedestrian counts at each location. The model should not be expected to be able to predict large deviations from time and date based estimates.  
+For the purpose of prediction, the use of the most simplistic model possible to make quick predictions of the expected pedestrian counts at each location, accessible to the public. The model is not expected to be able to predict large deviations from time and date based estimates.  
 
-Similar to the simple imputation model used, we will also use a generalised linear model with quasi-poisson errors using time and date based variables as predictors. The model specification used is:
+Similar to the simple imputation model used,  a generalised linear model with quasi-poisson errors is estimated using time and date based variables as predictors. The model specification used is:
 
 $$E \left[\text{HourlyCounts} \vert  \text{Sensor}, \text{Month}, \text{DayType}, \text{Time} \right] = \exp (\mu_{\text{Sensor}, \text{Month}, \text{DayType}, \text{Time}}) $$
 
@@ -1171,10 +1171,9 @@ ped_predict_day <- function(pred_date = today(tzone = "Australia/Melbourne"),
 ```
 
 
-Using a GLM predicts well compared to estimating with other models such as AR(p) or other time series models when considering the tradeoff between model complexity and prediction accuracy.  
+Using a GLM predicts well compared to estimating with other models such as AR($p$) or other time series models when considering the tradeoff between model complexity and prediction accuracy. Due to multiple seasonalities, AR($p$) models would need to be considered on a hour of the week basis at each sensor location. Prediction with time series models would also require of historical data. For the objective of this predictive model, the additional imputs required by end users to predict pedestrian counts when making out of sample predictions is not desirable. 
 
-As 
-```{r, fig.width=6, fig.height=4}
+```{r, fig.width=6, fig.height=4, fig.cap = paste("Plot of daily pedestrian counts series at Melbourne Central by DayType and Month. Month of the year is mapped to colour to help identify annual seasonal patterns, where month has an additive effect on the pedestrian counts. At Melbourne Central, different months can be seen to have different mean counts for a given type of day and hour of the day.")}
 ggplot(dfa2 %>%
          mutate(Date = date(Date_Time))) +
   geom_path(aes(x = as.integer(Time), y = `Melbourne Central`,
@@ -1186,6 +1185,7 @@ ggplot(dfa2 %>%
   labs(x = "Time of Day", y = "Pedestrian Counts \n at Melbourne Central")
 ```
 
+A plot of the daily pedestrian counts series at Melbourne Central by type of day and month show that time and date variables as deterministic predictors adequately explains most variation in the pedestrian counts. It can be seen that month has an additive effect as the pattern of the hourly counts for a given date are not affected by month. The six different factor levels that `DayType`, the type of day, is seen to be a sufficiently explain six different patterns. The type of day, Midweek, shows evidence that no additional information is gained from identifying the day to be Tuesday, Wednesday or Thursday.
 
 ```{r, fig.height=4, fig.width=8, fig.cap=paste("Plot of the estimated coefficients of the GLM at each sensor for each variable. Variables (x-axis) is ordered by the scagnostic measure, Outlying.")}
 dfcoeff <- data.frame(terms = factor(), coeff = numeric(), sensor = factor())
