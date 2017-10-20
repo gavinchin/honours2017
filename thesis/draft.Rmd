@@ -1,5 +1,5 @@
 ---
-title: "Thesis Draft"
+title: "Analysing Melbourne CBD pedestrian counts data with a focus on imputation methods"
 author: "Gavin Chin"
 date: "21 September 2017"
 output:
@@ -23,6 +23,7 @@ library(RColorBrewer)
 library(gridExtra)
 library(viridis)
 library(ggmap)
+library(broom)
 set.seed(12345)
 ```
 
@@ -969,11 +970,10 @@ sensor_dists <- numeric()
   
 ```
 
-```{r, fig.width = 8, fig.height=2, fig.cap = "Plot of simulated missingness method 1 at Bourke Street Mall (South)"}
+```{r, fig.width = 8, fig.height=2, fig.cap = "Plot of simulated missingness method 1 at Bourke Street Mall (South). 20% of the observations are removed from the traning data for the imputation model at random."}
 ggplot() + geom_line(aes(x = dfa2$Date_Time, y = mall_missing_1),
                      size = 0.1, alpha = 1) +
-           labs(y = "Pedestrian Count", x = "Time and Date",
-                title = "Simulated Missingness 1") +
+           labs(y = "Pedestrian Count", x = "Time and Date") +
           theme_minimal() + theme(plot.title = element_text(hjust = 0.5))
 ```
 
@@ -1097,12 +1097,6 @@ $$E \left[\text{HourlyCounts} \vert  \text{Sensor}, \text{Month}, \text{DayType}
 
 $$\text{where } \quad \mu_{\text{Sensor}, \text{Month}, \text{DayType}, \text{Time}} \sim \text{Month} + \text{Time}\times \text{DayType} \tag{2}$$
 
-When we estimate the GLM at each sensor location with R, we only need to save the elements in the model object which are required in order to retain the functionality of R's `predict.glm()` function. Saving the entire GLM object as given by the base R `glm()` function is highly inefficient when working with large datasets. This is due to the model object providing redundancies. In particular, elements which are unnecessarily saved for our purposes: the training data, the predictors in a model matrix format (the matrix of $\mathbf{X}$ after being formatted to be used for regression, such as recoding categorical variables into dummy variables), the response variable as another vector ($\mathbf{Y}$), the fitted values of the model after estimation, the residuals of the estimates, as well as the estimated effects.  
-
-The result of removing all the unnecessary redundant data elements in the GLM object is a storage size reduction from `r mall_model_2 %>% object.size() %>% format(units = "auto")` to `r mall_model_2 %>% stripGlmLR() %>% object.size() %>% format(units = "auto")`. This is only `r round((mall_model_2 %>% stripGlmLR() %>% object.size() %>% as.numeric/ mall_model_2 %>% object.size() %>% as.numeric)*100, 2)`% of the size of the original GLM object. With `r length(unique(ped_data$Sensor))` sensors (and models), this represents a reduction in model object size from `r format((mall_model_2 %>% object.size()) * length(unique(ped_data$Sensor)), units = "auto")` to `r format((mall_model_2 %>% stripGlmLR() %>% object.size()) * length(unique(ped_data$Sensor)), units = "auto")`.  
-
-The estimated model parameters are saved so that they can be used for on-the-fly predictions by end users without needing to estimate the model themselves. Using the estimated model parameters, we can write a new function to facilitate the predictions in an easy to use format.
-
 ```{r, echo = FALSE}
 library(purrr)
 library(dplyr)
@@ -1175,6 +1169,49 @@ ped_predict_day <- function(pred_date = today(tzone = "Australia/Melbourne"),
 }
 
 ```
+
+
+Using a GLM predicts well compared to estimating with other models such as AR(p) or other time series models when considering the tradeoff between model complexity and prediction accuracy.  
+
+As 
+```{r, fig.width=6, fig.height=4}
+ggplot(dfa2 %>%
+         mutate(Date = date(Date_Time))) +
+  geom_path(aes(x = as.integer(Time), y = `Melbourne Central`,
+                group = Date, colour = Month),
+            alpha = 0.1) +
+  scale_colour_viridis(discrete = TRUE, option = "C") +
+  facet_wrap(~ DayType) + theme_minimal() +
+  theme(legend.position = "none") +
+  labs(x = "Time of Day", y = "Pedestrian Counts \n at Melbourne Central")
+```
+
+
+```{r, fig.height=4, fig.width=8, fig.cap=paste("Plot of the estimated coefficients of the GLM at each sensor for each variable. Variables (x-axis) is ordered by the scagnostic measure, Outlying.")}
+dfcoeff <- data.frame(terms = factor(), coeff = numeric(), sensor = factor())
+for(i in names(pred_model)){
+  terms <- names(coef(pred_model[[i]]))
+  coeff <- coef(pred_model[[i]])
+  sensor <- rep(i, length(terms))
+  df_b <- data.frame(terms, coeff, sensor)
+  dfcoeff <- bind_rows(dfcoeff, df_b)
+}
+dfcoeff <- dfcoeff %>% spread(terms, coeff)
+
+library(GGally)
+library(scagnostics)
+ggparcoord(dfcoeff[, -1],
+           order = "Outlying", alphaLines = 0.3)
+```
+
+
+
+When we estimate the GLM at each sensor location with R, we only need to save the elements in the model object which are required in order to retain the functionality of R's `predict.glm()` function. Saving the entire GLM object as given by the base R `glm()` function is highly inefficient when working with large datasets. This is due to the model object providing redundancies. In particular, elements which are unnecessarily saved for our purposes: the training data, the predictors in a model matrix format (the matrix of $\mathbf{X}$ after being formatted to be used for regression, such as recoding categorical variables into dummy variables), the response variable as another vector ($\mathbf{Y}$), the fitted values of the model after estimation, the residuals of the estimates, as well as the estimated effects.  
+
+The result of removing all the unnecessary redundant data elements in the GLM object is a storage size reduction from `r mall_model_2 %>% object.size() %>% format(units = "auto")` to `r mall_model_2 %>% stripGlmLR() %>% object.size() %>% format(units = "auto")`. This is only `r round((mall_model_2 %>% stripGlmLR() %>% object.size() %>% as.numeric/ mall_model_2 %>% object.size() %>% as.numeric)*100, 2)`% of the size of the original GLM object. With `r length(unique(ped_data$Sensor))` sensors (and models), this represents a reduction in model object size from `r format((mall_model_2 %>% object.size()) * length(unique(ped_data$Sensor)), units = "auto")` to `r format((mall_model_2 %>% stripGlmLR() %>% object.size()) * length(unique(ped_data$Sensor)), units = "auto")`.  
+
+The estimated model parameters are saved so that they can be used for on-the-fly predictions by end users without needing to estimate the model themselves. Using the estimated model parameters, we can write a new function to facilitate the predictions in an easy to use format.
+
 
 ```{r, echo = TRUE, eval = FALSE}
 ped_predict(pred_date = "2017-12-26", t_hour = 13, is_pub_hol = TRUE)
