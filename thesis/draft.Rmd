@@ -218,7 +218,7 @@ for (i in unique(ped_data$Sensor)){
 
 While this works well with a small proportion of missing values, it also requires a large number of observations. Specifically, with this paramaterisation, we have $23 + 7 + (23 \times 7) + 1=192$ coefficients to estimate. Another disadvantage of using this model is the lack of robustness to outliers due to the sensitivity of some parameters. This becomes particularly problematic at sensor locations which have been recently installed, where there is a lack of historical data. 
 
-### Small-Large Split Approach
+### Improved imputation algorithm using small-large split approach
 
 The proposed alternative approach to imputing the missing values in the data focuses on improving the models used at locations with a large proportion of missing values. A potential threshold value which could be used to class a sensor as having a "large" proportion of missing values vs a "small" proportion of missing values is 10%. At locations with a "small" proportion of missings, we can continue to use the GLM quasi-possion regression specified in $(1)$. At the locations with a large proportion of missing values, we need to use information from neighbouring sensors. 
 
@@ -539,6 +539,9 @@ grid.arrange(p1, p2, ncol = 1)
 In order to use a mixture of the patterns from two different sensors, we need to use the scaled counts at the neighbouring sensors to avoid the magnitude of the counts having an effect on the predicted counts. We scale the counts by standardising to $\mu = 0, \sigma^2 = 1$. Because the covariance with neighbouring sensors may vary over time, we also add an interaction term between the neighbouring sensor counts and the time of the day. 
 
 ## Implementation of improved imputation algorithm
+
+The exact code used for this paper can be found on http://github.com/gavinchin/honours2017 
+
 ### False zero-counts correction
 The false zero-counts correction is performed in R using the run length encoding function, `rle()`. This function computes the length and values of runs of equal values in a vector. Unfortunately, this function does not recognise `NA` in the its computation, so all NA values are initially recoded to take the value 0 at each sensor. This results in all missing values and true zero counts to take the value zero when running `rle()`. With the returned run lengths, all sequences of repeated values longer than the defined length of 6 hours are replaced with `NA`. Any values which were also originally missing, but were not missing for longer than 6 hours (and hence are still coded as 0), are recoded to be `NA`. It must be noted that sequences of repeated values not equal to zero which run for longer that 6 hours would be incorrectly replaced with `NA`. This is highly unlikely, however, as 6 hours of the exact same pedestrian counts would be extremely rare.  
 
@@ -548,7 +551,17 @@ In the working data, a wide format is used. This makes it easier to calculate mi
 These proportions are saved for each sensor and then classified as either "large" or "small" based on a threshold value for the proportion. A list of sensors with large proportions of missing data and a list of sensors with small proportions of missing data is generated.
 
 ### Estimation of GLM at sensor locations with a small proportion of missing
-A for loop
+A for loop is used to estimate the GLM specified:
+```{r, echo = TRUE, eval = FALSE}
+glm(dfa[, i] ~ Month + DayType*Time, data = dfa,
+    family = quasipoisson())
+```
+where `dfa` is the object name given to the data frame containing the training data after the false zero-count correction, and `i` is the $i^{th{}}$ sensor in the list of sensors with a small proportion of missing values. These models are stored in a list, forming a list of models. An alternative approach to using a for loop in R is splitting the data into separate data frames for each sensor location (forming a list of data frames) and applying the `glm()` function on each data frame in the list using the function `purrr::map()`. However, when this was attempted, performance issues were encountered due to the large size of the estimated model objects in R. This was not an issue when a for loop was used. Additional code for removing unnecessary elements of the GLM model object before storing to the list of models, reduucing the memory usage.  
+
+### Imputation at sensor locations with a small proportion of missing values
+
+The predicted values are obtained using `predict.glm()`, using the option `type = "response"` to have predicted values returned predicted counts. The default option returns the predicted values of $\hat{\lambda}$ in the quasipoisson process, not the counts, $\exp (\hat{\lambda})$. 
+
 
 ## Imputation Results  
 
