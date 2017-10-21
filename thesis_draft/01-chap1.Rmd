@@ -473,7 +473,9 @@ Using the two geographically closest sensors (with complete cases) as defined by
 $$E \left[ \text{HourlyCounts}_{\text{sensor}} \vert \text{Time}, \text{HourlyCounts}_{\text{neighbours}} \right] = \mu_{\text{Time}, \text{HourlyCounts}_{\text{neighbours}}}$$
 $$\text{where } \quad  \mu_{\text{Time}, \text{HourlyCounts}_{\text{neighbours}}} \sim \text{Time} \times \text{HourlyCounts}_{\text{neighbour 1}}^{SC} + \text{Time} \times \text{HourlyCounts}_{\text{neighbour 2}}^{SC}$$
 
-We would expect that the amount of people passing through the neighbouring sensors will be a strong predictor of the pedestrian counts as they are likely to also pass through. Using geographical neighbours, we can capture rare events effectively. Any large shocks to the counts at the neighbouring sensors will have an effect on the counts to be imputed.
+The model uses and interaction term between the standardised/scaled counts at the neighbouring sensors and the time of the day (hour factor).
+
+The amount of people passing through the neighbouring sensors will be expected to be a strong predictor of the pedestrian counts as they are likely to also pass through. Using geographical neighbours, it is possible capture rare events effectively as the predictors are also random variables. Any large shocks to the counts at the neighbouring sensors will have an effect on the predicted counts.
 
 ```{r, echo = FALSE, message=FALSE, warning=F, include=FALSE}
 i <- "Southbank"
@@ -537,7 +539,7 @@ p2 <- ggplot(tr_dat_sc %>% filter(Date_Time < "2017-03-02",
 grid.arrange(p1, p2, ncol = 1)
 ```
 
-In order to use a mixture of the patterns from two different sensors, we need to use the scaled counts at the neighbouring sensors to avoid the magnitude of the counts having an effect on the predicted counts. We scale the counts by standardising to $\mu = 0, \sigma^2 = 1$. Because the covariance with neighbouring sensors may vary over time, we also add an interaction term between the neighbouring sensor counts and the time of the day. 
+In order to use a mixture of the patterns from two different sensors, the use of scaled counts at the neighbouring sensors is required to avoid the magnitude of the counts having an effect on the predicted counts. The counts are scaled by standardising to $\mu = 0, \sigma^2 = 1$ at each sensor (standardised within sensors). Because the covariance with neighbouring sensors may vary over time, an interaction term between the neighbouring sensor counts and the time of the day is included. 
 
 # Implementation of improved imputation algorithm
 
@@ -593,12 +595,12 @@ Unlike the GLM used for imputation for sensors with a small proportion of missin
 
 ## Imputation Results  
 
-Firstly, we evaluate the initial model used to impute:
+Firstly, the initial, simple method of imputation used is evaluated:
 $$\text{where } \quad \mu_{\text{Sensor}, \text{HDay}, \text{Time}} \sim \text{Time}\times \text{HDay} \tag{1}$$
 
 Note, this is also after the adjustments made to treat suspiciously long sequences of 0 values as `NA` in the actual counts. The simple GLM model is trained before this correction, while the improved model is trained on the adjusted data.
 
-For the purposes of evaluating the imputation method at a location with a small proportion of missing values, we will first look at the counts from Southern Cross Station. At this sensor, the proportion of missing values (adjusted) is `r round(na_prop["Southern Cross Station"]*100,2)`Firstly, we evaluate the goodness of fit of the predictions made within the training period (01/01/2014 to 31/12/2016).
+For the purposes of evaluating the imputation method at a location with a small proportion of missing values, the counts from Southern Cross Station will be used to evaluated prediction accuracy. At this sensor, the proportion of missing values (adjusted) is `r round(na_prop["Southern Cross Station"]*100,2)`. Firstly, the goodness of fit of the predictions made within the training period (01/01/2014 to 31/12/2016) are evaluated. 
 
 ```{r, fig.cap = "A plot of the in-sample Actual vs Predicted pedestrian counts at Southern Cross Station (sensor location with small proportion of missing values) for the simple GLM model and the improved GLM model. The dashed line is $x=y$, representing a reference for perfect fit, while solid line is the linear fit of the points. The improvement is very minor at Southern Cross Station as the data at this sensor is close to complete. Inclusion of month as a predictor is a main source of improvement in the model in this case."}
 p1 <- ggplot(data = NULL, aes(x = original_df %>% 
@@ -618,7 +620,7 @@ p1 <- ggplot(data = NULL, aes(x = original_df %>%
            scale_x_continuous(limits = c(0, 4000)) +
            scale_y_continuous(limits = c(0, 4000)) +
            xlab("Actual Pedestrian Count") +
-           ylab("Predicted Pedestrian Count /n by simple imputation method")
+           ylab("Predicted Pedestrian Count \n by simple imputation method")
 p2 <- ggplot(data = NULL, aes(x = original_df %>% 
              filter(Date_Time < "2017-01-01") %>%
              .[, "Southern Cross Station"],
@@ -640,9 +642,9 @@ p2 <- ggplot(data = NULL, aes(x = original_df %>%
 grid.arrange(p1, p2, nrow = 1)
 ```
 
-Visually, we can see that the fitted values are good estimates as the relationship between the actuals vs fitted is very close to 1:1. This is seen when we perform a least squares estimate of $\widehat{Fitted}_t = \hat{\beta}_0 + \hat{\beta}_1 Actual_t$, and the estimated $\hat{\beta}_0$ is close to 0 and $\hat{\beta}_1$ is close to 1. 
+Visually, it can be seen that the fitted values are good estimates of the pedestrian counts as the relationship between the actual values and the fitted values is very close to 1:1. This is best observed when performing a least squares estimate (linear fit) of $\widehat{Fitted}_t = \hat{\beta}_0 + \hat{\beta}_1 Actual_t$, where the estimated $\hat{\beta}_0$ is close to 0 and $\hat{\beta}_1$ is close to 1. 
 
-Here we see that the GLM model with only time and date based variables work well for fitting small periods of missing data.  
+This provides evidence that the GLM model with only time and date based variables work well when there is only small periods of missing data.  
 
 However, if we try to use this same model specification at sensor locations with large proportions of missing values, the fit is poor. We use the sensor at Australia on Collins, where the proportion of missing values is `r round(na_prop["Australia on Collins"]*100, 2)`%. 
 ```{r}
