@@ -103,13 +103,8 @@ ped_data %>% select(Sensor, Hourly_Counts) %>% split(.$Sensor)  %>%
 
 Not even an single sensor location has complete data for the period between between 1/1/2014 and `r paste(day(today()), month(today()), year(today()), sep = "/")`. 
 
-[^1]: from _'About Melbourne Data'_ page at https://data.melbourne.vic.gov.au/about
 
-[^2]: the specific pedestrian data is available at   https://data.melbourne.vic.gov.au/Transport-Movement/Pedestrian-volume-updated-monthly-/b2ak-trbp
-
-[^3]: https://github.com/earowang/rwalkr/
-
-### Imputation Literature Review Notes
+### Literature Review
 <!-- #### IMPUTATION OF MISSING CLASSIFIED TRAFFIC DATA DURING WINTER SEASON - _Hyuk-Jae Roh, Satish Sharma, Prasanta K. Sahu_   -->
 
 <!-- http://ir.lib.uwo.ca/cgi/viewcontent.cgi?article=1250&context=csce2016   -->
@@ -584,7 +579,11 @@ The GLM for sensor locations with a large proportion of missing values also uses
 glm(dfa[, i] ~ Time*close_dfsc + Time*close_dfsc2,
     data = dfa, family = quasipoisson())
 ```
-where `dfa[, i]` is the vector of pedestrian counts for the sensor being estimated, `Time` is the factor level for the hour of the day and `close_dfsc` and `close_dfsc2` are the standardised pedestrian counts at two geographically closest sensors.
+where `dfa[, i]` is the vector of pedestrian counts for the sensor being estimated, `Time` is the factor level for the hour of the day and `close_dfsc` and `close_dfsc2` are the standardised pedestrian counts at two geographically closest sensors.  
+Like the GLM for sensor locations with a small proportion of missing values, the model object is slim down to remove unnecessary elements to reduce memory usage. It is also noteworthy that the computational burden of the procedure for imputation using neighbouring sensors is significantly less due to less parameters being estimated.
+
+##### Replacing missings with imputed values  
+Unlike the GLM used for imputation for sensors with a small proportion of missing values, the model for neighbouring sensors requires transformation of the counts at the neighbours for imputation. As a consequence, it is more efficient to use `predict.glm()` inside the for loop as the neighbouring sensor counts have already been standardised when used for training the GLM. Again, the option `type = "response"` is specified to return predicted counts.
 
 ## Imputation Results  
 
