@@ -926,7 +926,7 @@ The plot of the average counts by time of day and type of day and data set shows
 Another way we can perform cross-validation is to remove data at a sensor, and evaulate the predictions made. This will allow us to evaluate the imputation model's performance within sample, which is the primary concern with them imputation process.  
 We select a sensor which has a small proportion of missing values, Bourke Street Mall (South), which has `r round((1 - na_prop["Bourke Street Mall (South)"])*100, 3)`% of data available. As observed in the data, missing data is present in different ways: random, short periods of missing data (no more that 6 hours) or long periods of missing data (multiple months). We will simulate both types of missingness at this sensor location.  
 
-First, we remove randomly remove data such that 20% of the data is missing, then estimate the imputation model. Using this model, we calculate the MARE within the training data.
+First, data is randomly removed such that 20% of the training data is missing, then the imputation model is estimated. Using the estimated model, the MARE within the training data is calculated (in-sample MARE).
 ```{r}
 miss_idx <- sample(1:nrow(dfa2), round(nrow(dfa2)*0.2))
 
@@ -1138,7 +1138,8 @@ ped_predict <- function(pred_date = today(tzone = "Australia/Melbourne"),
                                        "Holiday",
                                        daytype(pred_date)),
                       Month = lubridate::month(pred_date ,label = TRUE, abbr = F),
-                      Date = pred_date)
+                      Date = pred_date,
+                      Date_Time = ymd_h(paste(Date, t_hour, sep = " ")))
   
   preds <- numeric()
   for(i in names(pred_model)){
@@ -1154,13 +1155,12 @@ ped_predict <- function(pred_date = today(tzone = "Australia/Melbourne"),
   return(preds_df)
 }
 
-ped_predict_day <- function(pred_date = today(tzone = "Australia/Melbourne"),
-                            is_pub_hol = FALSE){
+ped_predict_day <- function(pred_date = today(tzone = "Australia/Melbourne"),is_pub_hol = FALSE){
   day_df <- data.frame()
-      system.time(for(t in 0:23){
+      for(t in 0:23){
         t_preds <- ped_predict(pred_date, t_hour = t, is_pub_hol)
         suppressWarnings(day_df <- bind_rows(day_df, t_preds))
-      })
+      }
   return(as.tibble(day_df))
 }
 
@@ -1213,4 +1213,15 @@ The estimated model parameters are saved so that they can be used for on-the-fly
 ped_predict(pred_date = "2017-12-26", t_hour = 13, is_pub_hol = TRUE)
 ```
 This function will return tibble (trimmed down version of `data.frame()` in R) containing the predicted counts at each sensor location for the 13th hour (13:00/1:00 PM) on Boxing Day (26 December) 2017. This tibble can then be easily used for visualisations or analysis. Due to the lack of data on future public holiday dates, the function assumes the date given is not a public holiday unless `is_pub_hol = TRUE` is provided.  
-Another function which uses the `ped_predict()`, `ped_predict_day()`, returns a tibble containing the predicted counts at each sensor location for all 24 hours of the date given to predict.
+Another function which uses the `ped_predict()`, `ped_predict_day()`, returns a tibble containing the predicted counts at each sensor location for all 24 hours of the date given to predict.  
+
+Using these function as a basis, visualisations of pedestrian counts can be easily generated in R:
+```{r, echo = TRUE, fig.cap = "Prediction for 21/05/2018 in R using `ped_predict_day()`, then plotting the time series using `ggplot2`. This shows the user friendly nature of the function, where the function returns predictions in a tidy, wide format. No data manipulation is required in order to plot the predicted counts.", fig.height=2}
+ped_predict_day("2018-05-21") %>% 
+  ggplot() + geom_line(aes(x = Date_Time, y = Southbank))
+```
+
+
+# Conclusion  
+Analysis of the Melbourne CBD pedestrian data made publicly available by the City of Melbourne has revealed issues with the dataset with relation to missing values in particular. A major issue which was found when using data sourced from the City of Melbourne's official pedestrian data visualisation (also accessible using `rwalkr::walk_melb()`) is potential for false zero-counts where missing values were given the value of zero. As outliers have major implications on analysis, a correction for the false counts in the data was proposed, by checking for lengths of repeated value sequences.  
+An imputation method for the pedestrian data was developed with a theory of sensor locations with a large proportion of missing values require modelling with non-deterministic predictors due to the lack of data. This method involved using neighbouring sensor counts data for prediction. Sensors with a small proportion of missing values used imputation models with only time and date variables as predictors. The proposed algorithm was evaluated in comparison to a single model specification of a generalised linear model with only time and date based variables at each sensor location. 
