@@ -227,7 +227,7 @@ The first issue which needs to be addressed is the potential of values which are
 ```{r}
 n_obs <- nrow(dfa)
 threshold <- 0.1
-threshold_miss_hrs <- 50
+threshold_miss_hrs <- 6
 
 run_lengths <- list()
 
@@ -537,6 +537,18 @@ grid.arrange(p1, p2, ncol = 1)
 ```
 
 In order to use a mixture of the patterns from two different sensors, we need to use the scaled counts at the neighbouring sensors to avoid the magnitude of the counts having an effect on the predicted counts. We scale the counts by standardising to $\mu = 0, \sigma^2 = 1$. Because the covariance with neighbouring sensors may vary over time, we also add an interaction term between the neighbouring sensor counts and the time of the day. 
+
+## Implementation of improved imputation algorithm
+### False zero-counts correction
+The false zero-counts correction is performed in R using the run length encoding function, `rle()`. This function computes the length and values of runs of equal values in a vector. Unfortunately, this function does not recognise `NA` in the its computation, so all NA values are initially recoded to take the value 0 at each sensor. This results in all missing values and true zero counts to take the value zero when running `rle()`. With the returned run lengths, all sequences of repeated values longer than the defined length of 6 hours are replaced with `NA`. Any values which were also originally missing, but were not missing for longer than 6 hours (and hence are still coded as 0), are recoded to be `NA`. It must be noted that sequences of repeated values not equal to zero which run for longer that 6 hours would be incorrectly replaced with `NA`. This is highly unlikely, however, as 6 hours of the exact same pedestrian counts would be extremely rare.  
+
+### Caculation of proportion of missing values and classification of sensors
+In the working data, a wide format is used. This makes it easier to calculate missing value proportion at each sensor location, as it is the proportion of missing values in the column for each sensor. Using `is.na()` returns a logical vector indicating whether the sensor count is missing/`NA` or not. The sum of the instances where `is.na = TRUE` divided by the hours in the period of 2014-2016 is computed to get the proportion of missing values.  
+
+These proportions are saved for each sensor and then classified as either "large" or "small" based on a threshold value for the proportion. A list of sensors with large proportions of missing data and a list of sensors with small proportions of missing data is generated.
+
+### Estimation of GLM at sensor locations with a small proportion of missing
+A for loop
 
 ## Imputation Results  
 
@@ -1224,4 +1236,5 @@ ped_predict_day("2018-05-21") %>%
 
 # Conclusion  
 Analysis of the Melbourne CBD pedestrian data made publicly available by the City of Melbourne has revealed issues with the dataset with relation to missing values in particular. A major issue which was found when using data sourced from the City of Melbourne's official pedestrian data visualisation (also accessible using `rwalkr::walk_melb()`) is potential for false zero-counts where missing values were given the value of zero. As outliers have major implications on analysis, a correction for the false counts in the data was proposed, by checking for lengths of repeated value sequences.  
-An imputation method for the pedestrian data was developed with a theory of sensor locations with a large proportion of missing values require modelling with non-deterministic predictors due to the lack of data. This method involved using neighbouring sensor counts data for prediction. Sensors with a small proportion of missing values used imputation models with only time and date variables as predictors. The proposed algorithm was evaluated in comparison to a single model specification of a generalised linear model with only time and date based variables at each sensor location. 
+An imputation method for the pedestrian data was developed with a theory of sensor locations with a large proportion of missing values require modelling with non-deterministic predictors due to the lack of data. This method involved using neighbouring sensor counts data for prediction. Sensors with a small proportion of missing values used imputation models with only time and date variables as predictors. The proposed algorithm was evaluated in comparison to a single model specification of a generalised linear model with only time and date based variables at each sensor location and uncorrected training data (false zero counts not corrected). This method was found to have improved prediction accuracy, as well as being robust at high levels of missingness.  
+
