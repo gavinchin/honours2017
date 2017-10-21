@@ -543,14 +543,17 @@ In order to use a mixture of the patterns from two different sensors, we need to
 The exact code used for this paper can be found on http://github.com/gavinchin/honours2017 
 
 ### False zero-counts correction
+
 The false zero-counts correction is performed in R using the run length encoding function, `rle()`. This function computes the length and values of runs of equal values in a vector. Unfortunately, this function does not recognise `NA` in the its computation, so all NA values are initially recoded to take the value 0 at each sensor. This results in all missing values and true zero counts to take the value zero when running `rle()`. With the returned run lengths, all sequences of repeated values longer than the defined length of 6 hours are replaced with `NA`. Any values which were also originally missing, but were not missing for longer than 6 hours (and hence are still coded as 0), are recoded to be `NA`. It must be noted that sequences of repeated values not equal to zero which run for longer that 6 hours would be incorrectly replaced with `NA`. This is highly unlikely, however, as 6 hours of the exact same pedestrian counts would be extremely rare.  
 
 ### Caculation of proportion of missing values and classification of sensors
+
 In the working data, a wide format is used. This makes it easier to calculate missing value proportion at each sensor location, as it is the proportion of missing values in the column for each sensor. Using `is.na()` returns a logical vector indicating whether the sensor count is missing/`NA` or not. The sum of the instances where `is.na = TRUE` divided by the hours in the period of 2014-2016 is computed to get the proportion of missing values.  
 
 These proportions are saved for each sensor and then classified as either "large" or "small" based on a threshold value for the proportion. A list of sensors with large proportions of missing data and a list of sensors with small proportions of missing data is generated.
 
-### Estimation of GLM at sensor locations with a small proportion of missing
+### Estimation of GLM at sensor locations with a small proportion of missing values
+
 A for loop is used to estimate the GLM specified:
 ```{r, echo = TRUE, eval = FALSE}
 glm(dfa[, i] ~ Month + DayType*Time, data = dfa,
@@ -560,7 +563,15 @@ where `dfa` is the object name given to the data frame containing the training d
 
 ### Imputation at sensor locations with a small proportion of missing values
 
-The predicted values are obtained using `predict.glm()`, using the option `type = "response"` to have predicted values returned predicted counts. The default option returns the predicted values of $\hat{\lambda}$ in the quasipoisson process, not the counts, $\exp (\hat{\lambda})$. 
+The predicted values are obtained using `predict.glm()`, using the option `type = "response"` to have predicted values returned predicted counts. The default option returns the predicted values of $\hat{\lambda}$ in the quasipoisson process, not the counts, $\exp (\hat{\lambda})$.  
+Missing values are then replaced using the imputed values, generating a data frame of complete data as sensor locations for with a small proportion of missing values to be used for prediction at sensors with a large proportion of missing values.
+
+### Estimation of GLM at sensor locations with a large proportion of missing values
+The following steps are performed on each sensor with a large proportion of missing values inside a for loop.
+
+##### Finding neighbouring sensors
+Using location data of the sensors provided by the City of Melbourne, a data frame containing the latitude and longitude coordinates of all the sensors which were classified as having a small proportion of missing values (and now have imputed, complete data), which are the candidates to be neighbours used for prediction.  
+Using the Great Circle/Haversine distance equation, implemented in the function `gcd.slc()`, an approximation of distance between each of the candidate sensors is calculated in and stored as a vector. Sorting by ascending order (using `sort()`) and taking the two smallest distances with `head(., 2)` returns the two geographically closest candidate neighbours. 
 
 
 ## Imputation Results  
