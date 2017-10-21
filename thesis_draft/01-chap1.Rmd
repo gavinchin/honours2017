@@ -157,9 +157,9 @@ The first method used to impute missing values is to fit generalised linear mode
 $$E \left[\text{HourlyCounts} \vert \text{Sensor}, \text{HDay}, \text{Time} \right] = \exp (\mu_{\text{Sensor}, \text{HDay}, \text{Time}}) $$
 $$\text{where } \quad \mu_{\text{Sensor}, \text{HDay}, \text{Time}} \sim \text{Time}\times \text{HDay} \tag{1}$$
 `Time` is the time of the day, while `HDay` is the day of the week, with an additional factor level for public holidays. 
-Both these variables are categorical/factors. We cannot treat time of the day as an integer or numeric because it does not have a linear relationship with counts.s
+Both these variables are categorical/factors. Time of the day  cannot be treated as an integer or numeric because it does not have a linear relationship with the pedestrian counts. 
 
-We use the Quasi-Poisson error distribution as opposed to normal/Gaussian errors due to the response variables being count data. The Poisson distribution allows for only non-negative integer values, while estimating a Quasi-Poisson model estimates an additional parameter for overdispersion. This allows more flexibility in the model by allowing the assumption that $E[Y]=Var[Y]=\mu$ to be relaxed. Instead, the Quasi-Poisson distribution allows for $Var[Y] = \theta \mu$. 
+The quasipoisson error distribution is used as opposed to normal/Gaussian errors due to the response variables being count data. The poisson distribution allows for only non-negative integer values, while estimating a quasipoisson model estimates an additional parameter for overdispersion. This allows more flexibility in the model by allowing the assumption that $E[Y]=Var[Y]=\mu$ to be relaxed. Instead, the quasipoisson distribution allows for $Var[Y] = \theta \mu$. 
 
 ```{r}
 ## Base GLM models
@@ -216,11 +216,11 @@ for (i in unique(ped_data$Sensor)){
 
 ```
 
-While this works well with a small proportion of missing values, it also requires a large number of observations. Specifically, with this paramaterisation, we have $23 + 7 + (23 \times 7) + 1=192$ coefficients to estimate. Another disadvantage of using this model is the lack of robustness to outliers due to the sensitivity of some parameters. This becomes particularly problematic at sensor locations which have been recently installed, where there is a lack of historical data. 
+While this simple model works well with a small proportion of missing values, a large number of observations is required for estimation. Specifically, with this paramaterisation, $23 + 7 + (23 \times 7) + 1=192$ parameters need to be estimated. Another disadvantage of using this model is the lack of robustness to outliers due to the sensitivity of some parameters. This becomes particularly problematic at sensor locations which have been recently installed, where there is a lack of historical data. 
 
 ### Improved imputation algorithm using small-large split approach
 
-The proposed alternative approach to imputing the missing values in the data focuses on improving the models used at locations with a large proportion of missing values. A potential threshold value which could be used to class a sensor as having a "large" proportion of missing values vs a "small" proportion of missing values is 10%. At locations with a "small" proportion of missings, we can continue to use the GLM quasi-possion regression specified in $(1)$. At the locations with a large proportion of missing values, we need to use information from neighbouring sensors. 
+The proposed alternative approach to imputing the missing values in the data focuses on improving the models used at locations with a large proportion of missing values. A potential threshold value which could be used to class a sensor as having a "large" proportion of missing values vs a "small" proportion of missing values is 10%. At locations with a "small" proportion of missings, we can continue to use a GLM quasipossion regression with only time and date based variables as predictors. At the locations with a large proportion of missing values, neighbouring sensor counts are used for prediction. 
 
 The first issue which needs to be addressed is the potential of values which are actually missing due to sensor failure or malfunction having a zero count. This issue will cause bias in the estimates, as well as affect the classification of a sensor. Of course, we cannot simply classify all zero counts as `NA`, as true zero values are possible. 
 
