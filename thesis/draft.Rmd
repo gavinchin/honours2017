@@ -566,13 +566,25 @@ where `dfa` is the object name given to the data frame containing the training d
 The predicted values are obtained using `predict.glm()`, using the option `type = "response"` to have predicted values returned predicted counts. The default option returns the predicted values of $\hat{\lambda}$ in the quasipoisson process, not the counts, $\exp (\hat{\lambda})$.  
 Missing values are then replaced using the imputed values, generating a data frame of complete data as sensor locations for with a small proportion of missing values to be used for prediction at sensors with a large proportion of missing values.
 
-### Estimation of GLM at sensor locations with a large proportion of missing values
+### Estimation procedure at sensor locations with a large proportion of missing values
 The following steps are performed on each sensor with a large proportion of missing values inside a for loop.
 
 ##### Finding neighbouring sensors
 Using location data of the sensors provided by the City of Melbourne, a data frame containing the latitude and longitude coordinates of all the sensors which were classified as having a small proportion of missing values (and now have imputed, complete data), which are the candidates to be neighbours used for prediction.  
-Using the Great Circle/Haversine distance equation, implemented in the function `gcd.slc()`, an approximation of distance between each of the candidate sensors is calculated in and stored as a vector. Sorting by ascending order (using `sort()`) and taking the two smallest distances with `head(., 2)` returns the two geographically closest candidate neighbours. 
+Using the Great Circle/Haversine distance equation, implemented in the function `gcd.slc()`, an approximation of distance between each of the candidate sensors is calculated in and stored as a vector. Sorting by ascending order (using `sort()`) and taking the two smallest distances with `head(., 2)` returns the two geographically closest candidate neighbours.  
 
+##### Extracting neighbouring sensors counts and standardising
+
+Using the sensor location names, the neighbouring sensors counts are extracted from the imputed training data and each vector is standardised to $\mu = 0, \sigma^2 = 1$ using the base R function `scale()` then stored.  
+
+##### GLM estimation
+
+The GLM for sensor locations with a large proportion of missing values also uses `glm()` as follows:
+```{r, echo = TRUE, eval = FALSE}
+glm(dfa[, i] ~ Time*close_dfsc + Time*close_dfsc2,
+    data = dfa, family = quasipoisson())
+```
+where `dfa[, i]` is the vector of pedestrian counts for the sensor being estimated, `Time` is the factor level for the hour of the day and `close_dfsc` and `close_dfsc2` are the standardised pedestrian counts at two geographically closest sensors.
 
 ## Imputation Results  
 
