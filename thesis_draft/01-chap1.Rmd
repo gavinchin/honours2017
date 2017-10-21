@@ -91,13 +91,18 @@ ori_2 <- filter(original_df, Date_Time < "2017-01-01")
 ori_ts <- filter(original_df, Date_Time > "2016-12-31")
 ori_ts2 <- ori_ts
 ```
-# Background  
+# Introduction  
 
-### The Data: City of Melbourne Pedestrian Data  
+The City of Melbourne provides an open data platform to access council datasets, with the intention "to increase transparency, improve public services and support new economic and social initiatives". This paper will focus primarily on the pedestrian data collected from pedestrian sensors placed throughout Melbourne's CBD. In particular, we want to be able to model the pedestrian traffic at different locations in the CBD, and forecast the traffic. In addition, we aim to have an interactive, dynamic data visualisation of the model to help us to understand how Melbourne operates. 
 
-The City of Melbourne provides an open data platform to access council datasets, with the intention "to increase transparency, improve public services and support new economic and social initiatives"[^1]. This paper will focus primarily on the pedestrian data collected from pedestrian sensors placed throughout Melbourne's CBD. In particular, we want to be able to model the pedestrian traffic at different locations in the CBD, and forecast the traffic. In addition, we aim to have an interactive, dynamic data visualisation of the model to help us to understand how Melbourne operates. 
+# Motivation
 
-The dataset being investigated can be obtained from the official City of Melbourne's open data[^2]. The pedestrian data is in the form of hourly pedestrian counts for `r length(unique(ped_data$Sensor_ID))` sensor locations. In total, there is `r nrow(ped_data)` observations in the dataset, representing `r nrow(dfa)` hours of data. It is available in `.csv` format, allowing for easy data import into R. We can also access the pedestrian data using the the `rwalkr` package by Earo Wang[^3]. This package allows R to import the data from `data.melbourne.vic.gov.au` which is updated monthly, or from the data source which is used by `pedestrian.melbourne.vic.gov.au` which is updated daily. 
+
+#Background
+
+### The Data: City of Melbourne Pedestrian Data
+
+The dataset being investigated can be obtained from the official City of Melbourne's open data[@com_data]. The pedestrian data is in the form of hourly pedestrian counts for `r length(unique(ped_data$Sensor_ID))` sensor locations. In total, there is `r nrow(ped_data)` observations in the dataset, representing `r nrow(dfa)` hours of data. It is available in `.csv` format, allowing for easy data import into R. We can also access the pedestrian data using the the `rwalkr` package [@_wang_rwalkr]. This package allows R to import the data from `data.melbourne.vic.gov.au` which is updated monthly, or from the data source which is used by `pedestrian.melbourne.vic.gov.au` which is updated daily. 
 
 ```{r}
 ped_data %>% select(Sensor, Hourly_Counts) %>% split(.$Sensor)  %>%
@@ -829,7 +834,7 @@ for (i in unique(ped_data$Sensor)){
 Again, we start by comparing the fit at a sensor location with a small proportion of missing values, Melbourne Central:
 
 ```{r, fig.height=3, fig.width=6, fig.cap = "A plot of the out-of-sample (2017) Actual vs Predicted pedestrian counts at Melbourne Central (sensor location with small proportion of missing values) for the simple GLM model and the improved GLM model. The dashed line is $x=y$, representing a reference for perfect fit, while solid line is the linear fit of the points. The improved method at Melbourne Central is seen to correct underestimation in the simple model by adding month of the year as a predictor in the model."}
-p1 <- ggplot(data = NULL, aes(x = ori_ts[, "Melbourne Central"],
+p1 <- ggplot(data = NULL, aes(x = ori_ts2[, "Melbourne Central"],
            y = test_base$`Melbourne Central`)) +
            geom_point(alpha = 0.05) +
            geom_abline(aes(slope = 1, intercept = 0),
@@ -845,7 +850,7 @@ p1 <- ggplot(data = NULL, aes(x = ori_ts[, "Melbourne Central"],
            scale_y_continuous(limits = c(0, 4000)) +
            xlab("Actual Pedestrian Count") +
            ylab("Predicted Pedestrian Count \n by simple imputation method")
-p2 <- ggplot(data = NULL, aes(x =ori_ts[, "Melbourne Central"],
+p2 <- ggplot(data = NULL, aes(x =ori_ts2[, "Melbourne Central"],
            y = test_fit$`Melbourne Central`)) +
            geom_point(alpha = 0.05) +
            geom_abline(aes(slope = 1, intercept = 0),
@@ -860,8 +865,7 @@ p2 <- ggplot(data = NULL, aes(x =ori_ts[, "Melbourne Central"],
            scale_x_continuous(limits = c(0, 4000)) +
            scale_y_continuous(limits = c(0, 4000)) +
            xlab("Actual Pedestrian Count") +
-           ylab("Predicted Pedestrian Count \n by improved imputation method") +
-           ggtitle("Improved GLM Model: Actual v. Predicted \n at Melbourne Central")
+           ylab("Predicted Pedestrian Count \n by improved imputation method")
 grid.arrange(p1, p2, nrow = 1)
 ```
 
@@ -936,7 +940,7 @@ p2 <- ggplot(mare_df) + geom_density(aes(x = mare, fill = model,
                               legend.position = "none") +
       labs(x = "In-sample MARE")
 p3 <- ggplot() + geom_point(aes(x = MARE_base_ts2, y = MARE_ts2,
-                                colour = (MARE_tr<MARE_base_glm_tr))) +
+                                colour = (MARE_ts2<MARE_base_ts2))) +
       geom_abline(aes(slope = 1, intercept = 0)) +
       scale_colour_viridis(discrete = TRUE, option = "C",
                            begin = 0.15, end = 0.85,

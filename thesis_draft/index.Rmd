@@ -5,6 +5,7 @@ author: 'Gavin Chin'
 output: bookdown::pdf_book
 site: bookdown::bookdown_site
 bibliography: ["thesisrefs.bib"]
+biblio-style: "apalike"
 link-citations: yes
 knit: "bookdown::render_book"
 ---
