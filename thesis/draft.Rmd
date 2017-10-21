@@ -975,9 +975,9 @@ ggplot() + geom_line(aes(x = dfa2$Date_Time, y = mall_missing_1),
           theme_minimal() + theme(plot.title = element_text(hjust = 0.5))
 ```
 
-With random hours of missing data, we have very good predictions by using neighbouring sensors with a low MARE of `r round(mall_mare_1*100, 2)`%. Unfortunately, this type of missingness is not consistent with what we observe at most sensors with large proportions of missing data.  
+With random hours of missing data, the predictions made by using neighbouring sensors  are estimated with good accuracy with a low MARE of `r round(mall_mare_1*100, 2)`%. Unfortunately, this type of missingness is not consistent with what is generally observed at most sensors with large proportions of missing data.  
 
-Instead, we need to remove 20% of the data in a single period to simulate what we typically observe. We take a random date and remove 2629 hours of data before and after this date. Then we proceed to estimate the imputation model again and calculate the MARE.
+Instead, a more meaningful method is to remove 20% of the data in a single period to simulate what is typically observed. A random date is taken and then 2629 hours of data is removed before and after this date (10% before, 10% after). The imputation model is estimated again in order to calculate a MARE.
 
 ```{r}
 miss_seed <- max(sample(1:nrow(dfa2),1) - 2629, 0)
@@ -1022,7 +1022,7 @@ sensor_dists <- numeric()
 ```
 
 
-```{r, fig.width = 8, fig.height=2, fig.cap = "Plot of simulated missingness method 2 at Bourke Street Mall (South) with 20% data missing"}
+```{r, fig.width = 8, fig.height=2, fig.cap = "Plot of simulated missingness method 2 at Bourke Street Mall (South) with 20% of the training data removed as a sequence. This method of simulating missing data is a better representation of the missing data observed at sensors with a large proportion of missing data compared to randomly removing hourly observations from the training data."}
 ggplot() + geom_line(aes(x = dfa2$Date_Time, y = mall_missing_2),
                 size = 0.1, alpha = 1) +
            labs(y = "Pedestrian Count", x = "Time and Date",
@@ -1075,7 +1075,7 @@ sensor_dists <- numeric()
 ```
 
 
-```{r, fig.width = 8, fig.height=2, fig.cap = "Plot of simulated missingness method 2 at Bourke Street Mall (South) with 50% data missing"}
+```{r, fig.width = 8, fig.height=2, fig.cap = "Plot of simulated missingness method 2 at Bourke Street Mall (South) with 50% of the training data removed as a sequence. A large proportion of the training data is removed to test the robustness of the imputation method used at sensors with extremely large proportions of missing data during the training period defined."}
 ggplot() + geom_line(aes(x = dfa2$Date_Time, y = mall_missing_3),
                 size = 0.1, alpha = 1) +
            labs(y = "Pedestrian Count", x = "Time and Date",
@@ -1083,7 +1083,7 @@ ggplot() + geom_line(aes(x = dfa2$Date_Time, y = mall_missing_3),
           theme_minimal() + theme(plot.title = element_text(hjust = 0.5))
 ```
 
-Removing 50% of the data using the same method, we find that the in-sample MARE is not affected very much by the significantly large proportion of missing training data where it is only `r round(mall_mare_3*100, 2)`%.
+Removing 50% of the data using the same method, it is found that the in-sample MARE is not affected significantly by the larger proportion of missing training data where it is only `r round(mall_mare_3*100, 2)`%.
 
 # Predictive Model
 
@@ -1203,8 +1203,6 @@ ggparcoord(dfcoeff[, 51:74], scale = "std",
   theme(axis.text.x = element_text(angle = 45, vjust = 0.5, size = 6)) +
   labs(x = "Parameter")
 ```
-
-
 
 When estimating the GLM at each sensor location with R, only the necessary elements in the model object which are required in order to retain the functionality of R's `predict.glm()` function are saved to file. Saving the entire GLM object as given by the base R `glm()` function is highly inefficient when working with large datasets. This is due to the model object providing redundancies. In particular, elements which are unnecessarily saved for the purposes of the predictive model: the training data, the predictors in a model matrix format (the matrix of $\mathbf{X}$ after being formatted to be used for regression, such as recoding categorical variables into dummy variables), the response variable as another vector ($\mathbf{Y}$), the fitted values of the model after estimation, the residuals of the estimates, as well as the estimated effects.  
 
