@@ -1,0 +1,149 @@
+---
+chapter: 2
+knit: "bookdown::render_book"
+---
+
+# Predictive Model
+
+For the purpose of prediction, the use of the most simplistic model possible to make quick predictions of the expected pedestrian counts at each location, accessible to the public. The model is not expected to be able to predict large deviations from time and date based estimates.  
+
+Similar to the simple imputation model used,  a generalised linear model with quasi-poisson errors is estimated using time and date based variables as predictors. The model specification used is:
+
+$$E \left[\text{HourlyCounts} \vert  \text{Sensor}, \text{Month}, \text{DayType}, \text{Time} \right] = \exp (\mu_{\text{Sensor}, \text{Month}, \text{DayType}, \text{Time}}) $$
+
+$$\text{where } \quad \mu_{\text{Sensor}, \text{Month}, \text{DayType}, \text{Time}} \sim \text{Month} + \text{Time}\times \text{DayType} \tag{2}$$
+
+```{r, echo = FALSE}
+library(purrr)
+library(dplyr)
+library(tidyr)
+library(lubridate)
+library(roxygen2)
+load("../data/model_est.RData")
+
+daytype <- function(date){
+  if(!is.Date(date)){stop("Object is not a date.")}
+  x_day <- wday(date, label = TRUE, abbr = FALSE)
+  x_daytype <- ifelse(x_day == "Sunday", "Sunday",
+                ifelse(x_day == "Saturday", "Saturday",
+                ifelse(x_day == "Monday", "Monday",
+                ifelse(x_day == "Friday", "Friday",
+                          "Midweek"))))
+  return(x_daytype)
+}
+#' Predicted pedestrian counts at various sensor locations in Melbourne
+#'
+#' @param pred_date input date
+#' @param t_hour input integer
+#' @param is_pub_hol input logical
+#' @return data frame of the fitted values at each location in wide format, with time and date
+#' @export
+#' @examples
+#' ped_predict()
+#' ped_predict("2017-12-25", 18, TRUE)
+#' 
+ped_predict <- function(pred_date = today(tzone = "Australia/Melbourne"),
+                        t_hour = 12,
+                        is_pub_hol = FALSE,
+                        long = FALSE) {
+  if(!(t_hour %in% seq(0, 23))){
+    stop("Hour is not between 0:00 and 23:00. Please give hour value between 0 and 23")}
+  pred_date <- ymd(pred_date)
+  if(!is.Date(pred_date)){
+    stop(paste("Date given to predict cannot be parsed as a date. Use the date format 'yyyy-mm-dd'. Example: 25 January 2018 is '2018-01-25'."))
+    }
+ 
+  date_pred <- data.frame(Time = as.factor(t_hour)) %>%
+               mutate(DayType = ifelse(is_pub_hol,
+                                       "Holiday",
+                                       daytype(pred_date)),
+                      Month = lubridate::month(pred_date ,label = TRUE, abbr = F),
+                      Date = pred_date,
+                      Date_Time = ymd_h(paste(Date, t_hour, sep = " ")))
+  
+  preds <- numeric()
+  for(i in names(pred_model)){
+    preds[i] <- predict(pred_model[[i]], newdata = date_pred, type = "response")
+  }
+  if(long){
+    return(preds)
+  }
+    else
+  preds_df <- data.frame("fit" = preds, "Sensor_ID" = names(preds)) %>%
+    spread(Sensor_ID, fit) %>% cbind(date_pred) %>% as_tibble
+  
+  return(preds_df)
+}
+
+ped_predict_day <- function(pred_date = today(tzone = "Australia/Melbourne"),is_pub_hol = FALSE){
+  day_df <- data.frame()
+      for(t in 0:23){
+        t_preds <- ped_predict(pred_date, t_hour = t, is_pub_hol)
+        suppressWarnings(day_df <- bind_rows(day_df, t_preds))
+      }
+  return(as.tibble(day_df))
+}
+
+```
+
+
+Using a GLM predicts well compared to estimating with other models such as AR($p$) or other time series models when considering the tradeoff between model complexity and prediction accuracy. Due to multiple seasonalities, AR($p$) models would need to be considered on a hour of the week basis at each sensor location. Prediction with time series models would also require of historical data. For the objective of this predictive model, the additional imputs required by end users to predict pedestrian counts when making out of sample predictions is not desirable. 
+
+```{r, fig.width=6, fig.height=4, fig.cap = paste("Plot of daily pedestrian counts series at Melbourne Central by DayType and Month. Month of the year is mapped to colour to help identify annual seasonal patterns, where month has an additive effect on the pedestrian counts. At Melbourne Central, different months can be seen to have different mean counts for a given type of day and hour of the day.")}
+ggplot(dfa2 %>%
+         mutate(Date = date(Date_Time))) +
+  geom_path(aes(x = as.integer(Time), y = `Melbourne Central`,
+                group = Date, colour = Month),
+            alpha = 0.1) +
+  scale_colour_viridis(discrete = TRUE, option = "C") +
+  facet_wrap(~ DayType) + theme_minimal() +
+  theme(legend.position = "none") +
+  labs(x = "Time of Day", y = "Pedestrian Counts \n at Melbourne Central")
+```
+
+A plot of the daily pedestrian counts series at Melbourne Central by type of day and month show that time and date variables as deterministic predictors adequately explains most variation in the pedestrian counts. It can be seen that month has an additive effect as the pattern of the hourly counts for a given date are not affected by month. The six different factor levels that `DayType`, the type of day, is seen to be a sufficiently explain six different patterns. The type of day, Midweek, shows evidence that no additional information is gained from identifying the day to be Tuesday, Wednesday or Thursday.
+
+```{r, fig.height=4, fig.width=8, fig.cap=paste("Plot of the estimated coefficients of the GLM for the interaction term $\text{DayType} \times \text{Time}$ for each hour at each sensor. Variables (x-axis) is ordered by the scagnostic measure, Outlying. "), include=FALSE, eval = FALSE}
+dfcoeff <- data.frame(terms = factor(), coeff = numeric(), sensor = factor())
+for(i in names(pred_model)){
+  terms <- names(coef(pred_model[[i]]))
+  coeff <- coef(pred_model[[i]])
+  sensor <- rep(i, length(terms))
+  df_b <- data.frame(terms, coeff, sensor)
+  dfcoeff <- bind_rows(dfcoeff, df_b)
+}
+dfcoeff <- dfcoeff %>% spread(terms, coeff)
+
+library(GGally)
+library(scagnostics)
+ggparcoord(dfcoeff[, 51:74], scale = "std", 
+           order = "Clumpy", alphaLines = 0.3) + theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, vjust = 0.5, size = 6)) +
+  labs(x = "Parameter")
+```
+
+When estimating the GLM at each sensor location with R, only the necessary elements in the model object which are required in order to retain the functionality of R's `predict.glm()` function are saved to file. Saving the entire GLM object as given by the base R `glm()` function is highly inefficient when working with large datasets. This is due to the model object providing redundancies. In particular, elements which are unnecessarily saved for the purposes of the predictive model: the training data, the predictors in a model matrix format (the matrix of $\mathbf{X}$ after being formatted to be used for regression, such as recoding categorical variables into dummy variables), the response variable as another vector ($\mathbf{Y}$), the fitted values of the model after estimation, the residuals of the estimates, as well as the estimated effects.  
+
+The result of removing all the unnecessary redundant data elements in the GLM object is a storage size reduction from `r mall_model_2 %>% object.size() %>% format(units = "auto")` to `r mall_model_2 %>% stripGlmLR() %>% object.size() %>% format(units = "auto")`. This is only `r round((mall_model_2 %>% stripGlmLR() %>% object.size() %>% as.numeric/ mall_model_2 %>% object.size() %>% as.numeric)*100, 2)`% of the size of the original GLM object. With `r length(unique(ped_data$Sensor))` sensors (and models), this represents a reduction in model object size from `r format((mall_model_2 %>% object.size()) * length(unique(ped_data$Sensor)), units = "auto")` to `r format((mall_model_2 %>% stripGlmLR() %>% object.size()) * length(unique(ped_data$Sensor)), units = "auto")`.  
+
+The estimated model parameters are saved so that they can be used for on-the-fly predictions by end users without needing to estimate the model themselves. Using the estimated model parameters, a new function is written to facilitate the predictions in an easy to use format.
+
+
+```{r, echo = TRUE, eval = FALSE}
+ped_predict(pred_date = "2017-12-26", t_hour = 13, is_pub_hol = TRUE)
+```
+This function will return tibble (trimmed down version of `data.frame()` in R) containing the predicted counts at each sensor location for the 13th hour (13:00/1:00 PM) on Boxing Day (26 December) 2017. This tibble can then be easily used for visualisations or analysis. Due to the lack of data on future public holiday dates, the function assumes the date given is not a public holiday unless `is_pub_hol = TRUE` is provided.  
+Another function which uses the `ped_predict()`, `ped_predict_day()`, returns a tibble containing the predicted counts at each sensor location for all 24 hours of the date given to predict.  
+
+Using these function as a basis, visualisations of pedestrian counts can be easily generated in R:
+```{r, echo = TRUE, fig.cap = "Prediction for 21/05/2018 in R using `ped_predict_day()`, then plotting the time series using `ggplot2`. This shows the user friendly nature of the function, where the function returns predictions in a tidy, wide format. No data manipulation is required in order to plot the predicted counts.", fig.height=2}
+ped_predict_day("2018-05-21") %>% 
+  ggplot() + geom_line(aes(x = Date_Time, y = Southbank))
+```
+
+
+# Conclusion  
+Analysis of the Melbourne CBD pedestrian data made publicly available by the City of Melbourne has revealed issues with the dataset with relation to missing values in particular. A major issue which was found when using data sourced from the City of Melbourne's official pedestrian data visualisation (also accessible using `rwalkr::walk_melb()`) is potential for false zero-counts where missing values were given the value of zero. As outliers have major implications on analysis, a correction for the false counts in the data was proposed, by checking for lengths of repeated value sequences.  
+An imputation method for the pedestrian data was developed with a theory of sensor locations with a large proportion of missing values require modelling with non-deterministic predictors due to the lack of data. This method involved using neighbouring sensor counts data for prediction. Sensors with a small proportion of missing values used imputation models with only time and date variables as predictors. The proposed algorithm was evaluated in comparison to a single model specification of a generalised linear model with only time and date based variables at each sensor location and uncorrected training data (false zero counts not corrected). This method was found to have improved prediction accuracy, as well as being robust at high levels of missingness.  
+
+\nocite{*}

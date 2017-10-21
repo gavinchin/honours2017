@@ -1,0 +1,1133 @@
+---
+chapter: 1
+knit: "bookdown::render_book"
+---
+---
+title: "Analysing Melbourne CBD pedestrian counts data with a focus on imputation methods"
+author: "Gavin Chin"
+date: "21 September 2017"
+output:
+  pdf_document: default
+  html_document: default
+  word_document: default
+fontsize: 12pt
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE, cache = TRUE,
+                      message = FALSE, warning = FALSE,
+                      fig.pos = 'h')
+library(tidyverse)
+library(lubridate)
+library(foreach)
+library(doSNOW)
+library(rwalkr)
+library(pander)
+library(RColorBrewer)
+library(gridExtra)
+library(viridis)
+library(ggmap)
+library(broom)
+set.seed(12345)
+```
+
+```{r data_loading, warning=F, message=F}
+ped_data <- NULL
+if(file.exists("../data/ped_df.csv")){
+  ped_data <- read_csv("../data/ped_df.csv")
+  ped_data$X1 <- NULL
+  }
+
+ ## ped_data <- read_csv("http://209.148.91.227/files/ped_df_28sep17.csv")
+
+## update data
+last_df_date <- ifelse(file.exists("../data/ped_df.csv"),
+                        ped_data$Date %>% sort() %>%
+                        tail(1),
+                        as.Date("2013-12-31")) + 1 %>% as.Date(origin = "1970-01-01")
+
+if(last_df_date != today(tzone = "Australia/Melbourne")){
+  new_data <- rwalkr::walk_melb(from = last_df_date, to = today()-1)
+  ped_data <- rbind(ped_data, new_data)
+  write_csv(ped_data, "../data/ped_df.csv")
+  }
+
+
+ped_data$Sensor_ID <- ped_data$Sensor
+ped_data$Hourly_Counts <- ped_data$Count
+ped_data$Date_Time <- ymd_h(paste(ped_data$Date, ped_data$Time, sep = " "))
+ped_data$Day <- lubridate::wday(ped_data$Date_Time, label = TRUE, abbr = F)
+ped_data$Month <- lubridate::month(ped_data$Date_Time, label = TRUE, abbr = F)
+ped_data$Time <- as.factor(ped_data$Time)
+
+## long to wide
+ped_data %>% select(Sensor_ID, Count, Date_Time, Time, Month, Day) %>% 
+  spread(Sensor_ID, Count) -> dfa
+
+pub_hday14 <- read.csv("http://data.gov.au/dataset/b1bc6077-dadd-4f61-9f8c-002ab2cdff10/resource/56a5ee91-8e94-416e-81f7-3fe626958f7e/download/australianpublicholidays-201415.csv---australianpublicholidays.csv.csv")
+pub_hday15 <- read.csv("http://data.gov.au/dataset/b1bc6077-dadd-4f61-9f8c-002ab2cdff10/resource/13ca6df3-f6c9-42a1-bb20-6e2c12fe9d94/download/australianpublicholidays-201516.csv")
+pub_hday16 <- read.csv("http://data.gov.au/dataset/b1bc6077-dadd-4f61-9f8c-002ab2cdff10/resource/a24ecaf2-044a-4e66-989c-eacc81ded62f/download/australianpublicholidays-201617.csv")
+pub_hdays <- rbind(pub_hday14, pub_hday15, pub_hday16)
+
+pub_hdays$Date <- ymd(pub_hdays$Date)
+pub_hdays$Month <- lubridate::month(pub_hdays$Date, label = TRUE, abbr = F)
+pub_hdays$VIC <- 0
+pub_hdays$VIC[grep(glob2rx("*VIC*"), pub_hdays$`Applicable.To`)] <- 1
+pub_hdays$VIC[grep("NAT", pub_hdays$`Applicable.To`)] <- 1
+
+
+dfa <- dfa %>% mutate(IsHDay = (date(Date_Time) %in% pub_hdays$Date[pub_hdays$VIC == 1]))
+
+dfa$DayType <-       ifelse(dfa$Day == "Sunday", "Sunday",
+                     ifelse(dfa$Day == "Saturday", "Saturday",
+                    ifelse(dfa$Day == "Monday", "Monday",
+                     ifelse(dfa$Day == "Friday", "Friday",
+                                  "Midweek"))))
+dfa$DayType[dfa$IsHDay == 1] <- "Holiday"
+dfa$HDay <- ifelse(dfa$IsHDay == 1, "Holiday", dfa$Day)
+original_df <- dfa
+dfa <- filter(dfa, Date_Time < "2017-01-01")
+ori_2 <- filter(original_df, Date_Time < "2017-01-01")
+ori_ts <- filter(original_df, Date_Time > "2016-12-31")
+ori_ts2 <- ori_ts
+```
+# Background  
+
+### The Data: City of Melbourne Pedestrian Data  
+
+The City of Melbourne provides an open data platform to access council datasets, with the intention "to increase transparency, improve public services and support new economic and social initiatives"[^1]. This paper will focus primarily on the pedestrian data collected from pedestrian sensors placed throughout Melbourne's CBD. In particular, we want to be able to model the pedestrian traffic at different locations in the CBD, and forecast the traffic. In addition, we aim to have an interactive, dynamic data visualisation of the model to help us to understand how Melbourne operates. 
+
+The dataset being investigated can be obtained from the official City of Melbourne's open data[^2]. The pedestrian data is in the form of hourly pedestrian counts for `r length(unique(ped_data$Sensor_ID))` sensor locations. In total, there is `r nrow(ped_data)` observations in the dataset, representing `r nrow(dfa)` hours of data. It is available in `.csv` format, allowing for easy data import into R. We can also access the pedestrian data using the the `rwalkr` package by Earo Wang[^3]. This package allows R to import the data from `data.melbourne.vic.gov.au` which is updated monthly, or from the data source which is used by `pedestrian.melbourne.vic.gov.au` which is updated daily. 
+
+```{r}
+ped_data %>% select(Sensor, Hourly_Counts) %>% split(.$Sensor)  %>%
+            map(is.na) %>% map(sum) %>% unlist -> sensor_missvals
+```
+
+
+Not even an single sensor location has complete data for the period between between 1/1/2014 and `r paste(day(today()), month(today()), year(today()), sep = "/")`. 
+
+
+# Literature Review
+<!-- #### IMPUTATION OF MISSING CLASSIFIED TRAFFIC DATA DURING WINTER SEASON - _Hyuk-Jae Roh, Satish Sharma, Prasanta K. Sahu_   -->
+
+<!-- http://ir.lib.uwo.ca/cgi/viewcontent.cgi?article=1250&context=csce2016   -->
+<!-- - traffic counters with 40% to 60% missing values -->
+<!-- - heuristic methods -->
+<!--   - using "good historical values" or historical average values resulted -->
+<!--     in MARE (mean absolute relative error) reaching up to 80% -->
+<!--   - using moving average values worked better than other heuristic methods -->
+<!--   - all heuristic methods inhenrently cannot reflect sudden fluctuations during abnormal periods -->
+<!-- - pattern matching methods -->
+<!--   - find "candidate" volume pattern to compare to "study curve" and use the candidate which best matches the study curve -->
+<!-- - ARIMA -->
+<!--   - did not work well with multiple seasonalities -->
+<!-- - AI methods -->
+<!--   - genetic algorithms (GAs) and artificial neural networks (ANNs) -->
+
+<!-- Method used in the study was kNN with an interaction using a weather model, which they found to work best with large variations in traffic during winter -->
+<!-- (severe weather conditions affecting traffic volume)   -->
+
+Reviewing current research on imputation of missing values in traffic data, a paper on imputation of missing classified traffic data during winter season (Imputation of Missing Classified Traffic Data During Winter Season - _Hyuk-Jae Roh, Satish Sharma, Prasanta K. Sahu_) stated some methods which were found to be poor for imputation. The data they were attempting imputation for were traffic counters located on the highway network in Alberta, Canada with between 40% and 60% missing data. 
+
+Replacement with "good" historical values, or using historical average values was found to have resulted in very poor fit with high MARE/MARD (mean absolute relative error/difference). They did find that using a moving average worked the best out of all the heuristic methods used. The largest problem with heuristic methods, however, is the inherent inability to reflect sudden fluctuations/shocks during abnormal periods. With such a large proportion of missing values, pattern matching methods were investigated. This involves comparing the _study curve_, the pattern at the counter which is to be imputed, to candidate patterns (patterns at other locations).  
+
+For the purposes of that paper, it was found to be inappropriate with the data being analysed.  However, unlike _Roh et al._ where patterns were compared to traffic volumes in different jurisdictions (large geographical distance), the geographic distances between the sensor locations in the Melbourne CBD pedestrian data are much smaller. Another difference is the randomness of the missing values, where the periods of missing data run longer in the Melbourne CBD pedestrian data compared to that in the Alberta traffic data. They proposed using non-parametric estimation methods with k-Nearest Neighbours for their imputation, although this is unlikely to work well with the lack of data at certain sensor locations in the Melbourne CBD Pedestrian data.
+
+
+<!-- #### Flexible and Robust Method for Missing Loop Detector Data Imputation - _K. C. Henrickson, Y. Zou, and Y. Wang_   -->
+
+<!-- http://docs.trb.org/prp/15-5804.pdf   -->
+<!-- - also use kNN -->
+
+<!-- #### Key Factors of K-nearest Neighbors Nonparametric Regression in Short-time Traffic Flow Forecasting -->
+<!-- http://www.springer.com/cda/content/document/cda_downloaddocument/9789462391017-c2.pdf?SGWID=0-0-45-1492476-p177147492 -->
+
+<!-- #### K-NEAREST NEIGHBOR ALGORITHM FOR UNIVARIATE TIME SERIES PREDICTION -->
+
+<!-- http://webbut.unitbv.ro/BU2012/Series%20III/BULETIN%20III/Sasu%20A.pdf -->
+
+
+# Methodology: Imputation of Missing Values  
+
+### Basic GLM Approach
+
+The first method used to impute missing values is to fit generalised linear models (GLMs) at each sensor location. Estimating a GLM with a Quasi-Poisson error distribution, where specify the model as:
+$$E \left[\text{HourlyCounts} \vert \text{Sensor}, \text{HDay}, \text{Time} \right] = \exp (\mu_{\text{Sensor}, \text{HDay}, \text{Time}}) $$
+$$\text{where } \quad \mu_{\text{Sensor}, \text{HDay}, \text{Time}} \sim \text{Time}\times \text{HDay} \tag{1}$$
+`Time` is the time of the day, while `HDay` is the day of the week, with an additional factor level for public holidays. 
+Both these variables are categorical/factors. We cannot treat time of the day as an integer or numeric because it does not have a linear relationship with counts.s
+
+We use the Quasi-Poisson error distribution as opposed to normal/Gaussian errors due to the response variables being count data. The Poisson distribution allows for only non-negative integer values, while estimating a Quasi-Poisson model estimates an additional parameter for overdispersion. This allows more flexibility in the model by allowing the assumption that $E[Y]=Var[Y]=\mu$ to be relaxed. Instead, the Quasi-Poisson distribution allows for $Var[Y] = \theta \mu$. 
+
+```{r}
+## Base GLM models
+
+
+### code from:
+## http://www.win-vector.com/blog/2014/05/trimming-the-fat-from-glm-models-in-r/
+stripGlmLR = function(cm) {
+  cm$y = c()
+  cm$model = c()
+  
+  cm$residuals = c()
+  cm$fitted.values = c()
+  cm$effects = c()
+  cm$qr$qr = c()  
+  cm$linear.predictors = c()
+  cm$weights = c()
+  cm$prior.weights = c()
+  cm$data = c()
+  
+  
+  cm$family$variance = c()
+  cm$family$dev.resids = c()
+  cm$family$aic = c()
+  cm$family$validmu = c()
+  cm$family$simulate = c()
+  attr(cm$terms,".Environment") = c()
+  attr(cm$formula,".Environment") = c()
+  
+  cm
+}
+#######################################
+```
+
+
+```{r}
+cl <- makeCluster(2)
+registerDoSNOW(cl)
+fitted_base <- list()
+models_base <- foreach(i = unique(ped_data$Sensor_ID)) %dopar% {
+    tr_dat <- data.frame(dfa[, i],  HDay = dfa$HDay, Time = dfa$Time)
+    colnames(tr_dat)[1] <- "Hourly_Counts"
+    model <- glm(Hourly_Counts ~ HDay*Time, data = tr_dat, family = quasipoisson())
+    return(stripGlmLR(model))
+  }
+names(models_base) <- unique(ped_data$Sensor_ID)
+# ped_models[[31]]$xlevels <- ped_models[[1]]$xlevels
+for (i in unique(ped_data$Sensor)){  
+  tr_dat <- data.frame(dfa [, i],  HDay = dfa$HDay, Time = dfa$Time)
+  options(na.action = na.pass)
+  fitted_base[[i]] <- predict.glm(models_base[[i]], newdata = tr_dat, type = "response")
+  options(na.action = na.omit)
+  }
+
+```
+
+While this works well with a small proportion of missing values, it also requires a large number of observations. Specifically, with this paramaterisation, we have $23 + 7 + (23 \times 7) + 1=192$ coefficients to estimate. Another disadvantage of using this model is the lack of robustness to outliers due to the sensitivity of some parameters. This becomes particularly problematic at sensor locations which have been recently installed, where there is a lack of historical data. 
+
+### Improved imputation algorithm using small-large split approach
+
+The proposed alternative approach to imputing the missing values in the data focuses on improving the models used at locations with a large proportion of missing values. A potential threshold value which could be used to class a sensor as having a "large" proportion of missing values vs a "small" proportion of missing values is 10%. At locations with a "small" proportion of missings, we can continue to use the GLM quasi-possion regression specified in $(1)$. At the locations with a large proportion of missing values, we need to use information from neighbouring sensors. 
+
+The first issue which needs to be addressed is the potential of values which are actually missing due to sensor failure or malfunction having a zero count. This issue will cause bias in the estimates, as well as affect the classification of a sensor. Of course, we cannot simply classify all zero counts as `NA`, as true zero values are possible. 
+
+```{r}
+n_obs <- nrow(dfa)
+threshold <- 0.1
+threshold_miss_hrs <- 6
+
+run_lengths <- list()
+
+for(i in unique(ped_data$Sensor)){
+    dfa[is.na(dfa[, i]), i] <- 0
+    na_length_check <- rle(as.numeric(unlist(dfa[,i])))
+    maybeNA <- rep((na_length_check$lengths > threshold_miss_hrs), times = na_length_check$lengths)
+    rl <- dfa[, i] %>% unlist %>% rle()
+    dfa[maybeNA, i] <- NA
+    defsNA <- is.na(ori_2[, i])
+    dfa[defsNA, i] <- NA
+    run_lengths[[i]] <- rl
+  }
+
+ori_2 <- dfa
+
+run_lengths %>% lapply(., `[[`, 1) %>%
+    unlist -> sequences
+
+pander(summary(sequences[sequences > 1]))
+```
+Table: Summary statistics of the sequence lengths of repeated values
+
+Instead, a simple check we can implement is to look for long sequences of zero counts. For example, we may want to classify any sequence of `Hourly_Counts = 0` running for longer than 24 hours as being considered `NA`. From the summary of lengths of repeated values (which are repeated at least once), we see that the distribution of the lengths are very positively skewed with a mean length of `r round(mean(sequences[sequences > 1]), 2)` hours of missing data. Classifying any sequence of repeated values, typically 0, which has a length greater than 6 as `NA` should allow true zero counts to avoid being misclassified as `NA`. We select the length of 6 hours as it would be unreasonable to assume any sensor location to have the exact same number of pedestrian counts over such a long period. 
+
+After we have replaced questionable zero values with the value `NA`, we can calculate the proportion of missing values for each sensor location. From these calculated proportion, we can classify sensors as either having a "large" or "small" proportion of missing values, where large is defined as $\mathtt{NAprop}_{sensor} > \mathtt{threshold}$ and `threshold = 0.1`.  
+
+```{r na_prop_compute}
+na_prop <- numeric()
+
+for (i in unique(ped_data$Sensor)){
+  na_prop[i] <- sum(is.na(dfa[, i])) / n_obs
+}
+
+na_prop_pre <- numeric()
+
+for (i in unique(ped_data$Sensor)){
+  na_prop_pre[i] <- sum(is.na(ori_2[, i])) / n_obs
+}
+
+large_miss_sensors <- names(na_prop[na_prop > threshold])
+small_miss_sensors <- setdiff(names(na_prop), large_miss_sensors)
+```
+
+```{r naprop_hist, fig.width=6, fig.height=3, fig.cap="Histograms of the proportions of missing values at each sensor during 2014 - 2016 when calculated before and after correction for false zero counts. The distributions of proportion of missing values at each sensor is significantly different after correcting for false zero counts in the data. This emphasises the necessity to correct for false zero counts as it will affect "}
+theme_g <- theme_minimal() +
+           theme(plot.title = element_text(hjust = 0.5,
+                                           size = 10))
+p1 <- ggplot() + geom_histogram(aes(x = na_prop*100), bins = 12) +
+          xlab("Percentage of Missing Values (%)") +
+          ylab("Number of Sensors") + theme_g +
+          geom_vline(xintercept = 10, size = 2,
+                     colour = 'red') +
+          geom_label(aes(label = "10% Threshold", x = 16, y = 25),
+                    colour = "white", fill = 'black', alpha = 0.4) +
+          scale_y_continuous(limits = c(0,35))
+p2 <- ggplot() + geom_histogram(aes(x = na_prop_pre*100), bins = 12) +
+          xlab("Percentage of Missing Values (%)") +
+          ylab("Number of Sensors") + theme_g +
+          geom_vline(xintercept = 10, size = 2,
+                     colour = 'red') +
+          geom_label(aes(label = "10% Threshold", x = 16, y = 25),
+                    colour = "white", fill = 'black', alpha = 0.4) +
+          scale_y_continuous(limits = c(0,35))
+grid.arrange(p2, p1, nrow = 1)
+```
+
+Because the models for the sensors with a large proportion of missing values rely on having neighbouring sensors having complete cases (no missing values), we want to impute these values first. This will then allow us to have as much information to be available for the models which use neighbouring sensors to to train on.
+
+For sensors with a small proportion of missing values, we use a GLM quasipoisson model. To improve on the previous model used, we use the model:
+$$E \left[\text{HourlyCounts} \vert  \text{Sensor}, \text{Month}, \text{DayType}, \text{Time} \right] = \exp (\mu_{\text{Sensor}, \text{Month}, \text{DayType}, \text{Time}}) $$
+
+$$\text{where } \quad \mu_{\text{Sensor}, \text{Month}, \text{DayType}, \text{Time}} \sim \text{Month} + \text{Time}\times \text{DayType} \tag{2}$$
+
+```{r alg_glm}
+models <- list()
+fitted_data <- list()
+dfa2 <- dfa
+p <- progress_estimated(length(unique(ped_data$Sensor)))
+for(i in small_miss_sensors){
+  p$tick()$print()
+  options(na.action = na.omit)
+  # if(max(na_length_check$lengths) > max_miss_hrs) 
+  # {
+  #   model <- NULL
+  # }
+  
+  sensor_df <- unlist(dfa[, i])
+  
+  model <- glm(sensor_df ~  Month + DayType*Time, family = 'quasipoisson', data = dfa)
+  models[[i]] <- (stripGlmLR(model))
+}
+```
+
+```{r alg_glm_impute}
+  options(na.action = na.pass)
+for(i in small_miss_sensors){
+  ts_dat <- data.frame(Month = dfa$Month, DayType = dfa$DayType, Time = dfa$Time)
+  fitted_data[[i]] <- predict.glm(models[[i]],newdata = ts_dat, type = "response")
+}
+  options(na.action = na.omit)
+  for(i in small_miss_sensors){
+    dfa2[is.na(dfa[, i]), i] <- fitted_data[[i]][is.na(dfa[, i])]
+    }
+  
+```
+
+
+Instead of `HDay`, we use `DayType` which classifies Tuesday, Wednesday and Thursday as a single factor level, Midweek. We do this as the daily patterns on these weekdays are similar. This reduces the number of parameters to estimate by 46. A result of this is we also have more robust estimates for the midweek days, being less sensitive to outliers. Because this model will be estimated for sensor locations with few missing values,  we have enough data to add in month as an additive effect. This will help capture the annual seasonality.  
+
+Using these estimated models, we impute the missing values to produce complete data at all these sensor locations. For the locations with high proportions of missing values can be predicted using the now complete data from all the locations which had a small proportion of missing values. Using a threshold of 10%, this gives us `r length(small_miss_sensors)` sensor locations to use.  
+
+```{r, fig.width=4, fig.height=4, fig.align='center', fig.cap = "Map showing the algorithm selecting Flinders St Station Underpass and Sandridge Bridge as neighbours to be used to predict the pedestrian counts at Southbank"}
+ped_loc <- read_csv("../data/Pedestrian_sensor_locations.csv")
+lats <- ped_loc$Latitude
+lons <- ped_loc$Longitude
+ids <- ped_loc$`Sensor Description`
+
+{
+ids[ids == "Flinders Street Station Underpass"] <- "Flinders St Station Underpass"
+ids[ids == "Flinders St-Spark La"] <- "Flinders St-Spark Lane"
+ids[ids == "Queen St (West)"] <-  "Queen Street (West)"
+ids[ids == "The Arts Centre"] <- "Vic Arts Centre"
+ids[ids == "Lonsdale St-Spring St (West)"] <- "Spring St-Lonsdale St (South)"
+ids[ids == "Lygon St (East)"] <- "Lygon Street (East)"
+ids[ids == "QV Market-Elizabeth St (West)"] <- "QV Market-Elizabeth (West)"
+ids[ids == "Melbourne Convention Exhibition Centre"] <- "Convention/Exhibition Centre"
+ids[ids == "St Kilda Rd-Alexandra Gardens"] <- "St. Kilda-Alexandra Gardens"
+}
+loc <- data.frame(lons, lats, ids)
+rownames(loc) <- ids
+loc <- loc %>% mutate(cl = ifelse((loc$ids %in% small_miss_sensors),
+                                  "Small", "Large"))
+rownames(loc) <- loc$ids
+
+melb3 <- get_map(location = c(loc["Southbank",]$lons,
+                              loc["Southbank",]$lats),
+                 zoom = 17, maptype = "roadmap")
+
+sens_lines_lon <- as.numeric(c(loc["Flinders St Station Underpass",]$lons,
+                loc["Southbank",]$lons,
+                loc["Sandridge Bridge",]$lons))
+
+sens_lines_lat <- as.numeric(c(loc["Flinders St Station Underpass",]$lats,
+                loc["Southbank",]$lats,
+                loc["Sandridge Bridge",]$lats))
+
+sens_lines <- data.frame(lon = sens_lines_lon,
+                         lat = sens_lines_lat)
+options(na.action = 'na.omit')
+ggmap(melb3) + geom_line(aes(x = lon, y = lat),
+                        data = sens_lines, size = 2,
+                        colour = viridis(3)[2], alpha = 0.5) +
+               geom_point(aes(x = lons, y = lats, colour = cl),
+                          size = 6,
+                          data = loc) +
+               scale_colour_viridis(discrete = TRUE,
+                                    name = "Sensor NA Prop.",
+                                    begin = 0.5, end = 0) +
+               geom_point(aes(x = loc["Southbank",]$lons,
+                              y = loc["Southbank",]$lats),
+                          size = 12, colour = viridis(3)[2]) +
+               geom_label(aes(label = ids, x = lons, y = lats,
+                              fill = cl),
+                         fontface = 'bold', colour = 'white',
+                         data = loc, size = 3,
+                         nudge_y = -0.000325) +
+              scale_fill_viridis(discrete = TRUE,
+                                  name = "Sensor NA Prop.",
+                                  begin = 0.5, end = 0) +
+              xlab(NULL) + ylab(NULL) +
+              theme(plot.title = element_text(hjust = 0.5),
+                    plot.caption = element_text(hjust = 0.5),
+                    axis.text.x = element_blank(),
+                    axis.text.y = element_blank(),
+                    axis.ticks = element_blank(),
+                    legend.position = c(.8,0.2))
+```
+
+
+For each of the sensor locations with high proportions of missings, we need to decide which sensor to use for prediction. A simple method of finding a geographical closest neighbour is to take the haversine/great-circle distance between the sensor to be imputed and all the possible candidates.
+```{r, message=F}
+# Calculates the geodesic distance between two points specified by radian latitude/longitude using the
+# Spherical Law of Cosines (slc)
+# source: https://www.r-bloggers.com/great-circle-distance-calculations-in-r/
+gcd.slc <- function(long1, lat1, long2, lat2) {
+  R <- 6371 # Earth mean radius [km]
+  d <- acos(sin(lat1)*sin(lat2) + cos(lat1)*cos(lat2) * cos(long2-long1)) * R
+  return(d) # Distance in km
+}
+
+## name fix dictionary
+{
+ids[ids == "Flinders Street Station Underpass"] <- "Flinders St Station Underpass"
+ids[ids == "Flinders St-Spark La"] <- "Flinders St-Spark Lane"
+ids[ids == "Queen St (West)"] <-  "Queen Street (West)"
+ids[ids == "The Arts Centre"] <- "Vic Arts Centre"
+ids[ids == "Lonsdale St-Spring St (West)"] <- "Spring St-Lonsdale St (South)"
+ids[ids == "Lygon St (East)"] <- "Lygon Street (East)"
+ids[ids == "QV Market-Elizabeth St (West)"] <- "QV Market-Elizabeth (West)"
+ids[ids == "Melbourne Convention Exhibition Centre"] <- "Convention/Exhibition Centre"
+ids[ids == "St Kilda Rd-Alexandra Gardens"] <- "St. Kilda-Alexandra Gardens"
+}
+loc <- data.frame(lons, lats, ids)
+rownames(loc) <- ids
+```
+
+
+```{r alg_lm}
+for (i in large_miss_sensors){
+  # p$tick()$print()
+  sensor_dists <- numeric()
+  for (j in small_miss_sensors){
+      dists <- gcd.slc(loc[i,]$lons, loc[i,]$lats, loc[j,]$lons, loc[j,]$lats)
+      sensor_dists[j] <- dists
+  }
+  names(sensor_dists) <- small_miss_sensors
+  closest_sensor <- sensor_dists %>% sort %>%
+                    head(2) %>% names
+  close_df_scale <- dfa2[, closest_sensor[1]] %>% unlist %>% scale
+  close_df_scale2 <- dfa2[, closest_sensor[2]] %>% unlist %>% scale
+
+  sensor_df <- dfa2[, i] %>% unlist
+  
+  tr_dat <- data.frame(sensor_df, close_df_scale, close_df_scale2, Time = dfa$Time)
+  options(na.action = na.omit)
+  model <- glm(sensor_df ~ Time*close_df_scale + Time*close_df_scale2,
+               data = tr_dat, family = quasipoisson())
+  models[[i]] <- stripGlmLR(model)
+  
+  options(na.action = na.pass)
+  fitted_data[[i]] <- predict(model, newdata = tr_dat, type = "response")
+  options(na.action = na.omit)
+
+  dfa2[is.na(dfa[, i]), i] <- fitted_data[[i]][is.na(dfa[, i])]
+  
+}
+
+```
+
+Using the two geographically closest sensors with complete cases, we use another GLM specified as:
+$$E \left[ \text{HourlyCounts}_{\text{sensor}} \vert \text{Time}, \text{HourlyCounts}_{\text{neighbours}} \right] = \mu_{\text{Time}, \text{HourlyCounts}_{\text{neighbours}}}$$
+$$\text{where } \quad  \mu_{\text{Time}, \text{HourlyCounts}_{\text{neighbours}}} \sim \text{Time} \times \text{HourlyCounts}_{\text{neighbour 1}}^{SC} + \text{Time} \times \text{HourlyCounts}_{\text{neighbour 2}}^{SC}$$
+
+We would expect that the amount of people passing through the neighbouring sensors will be a strong predictor of the pedestrian counts as they are likely to also pass through. Using geographical neighbours, we can capture rare events effectively. Any large shocks to the counts at the neighbouring sensors will have an effect on the counts to be imputed.
+
+```{r, echo = FALSE, message=FALSE, warning=F, include=FALSE}
+i <- "Southbank"
+  sensor_dists <- numeric()
+  for (j in small_miss_sensors){
+      dists <- gcd.slc(loc[i,]$lons, loc[i,]$lats, loc[j,]$lons, loc[j,]$lats)
+      sensor_dists[j] <- dists
+  }
+  names(sensor_dists) <- small_miss_sensors
+  closest_sensor <- sensor_dists %>% sort %>%
+                    head(2) %>% names
+  dfa3 <- original_df %>% filter(Date_Time > "2017-01-01")
+  close_df <- dfa3[, closest_sensor[1]] %>% unlist
+  close_df2 <- dfa3[, closest_sensor[2]] %>% unlist
+  
+  close_dfsc <- scale(close_df)
+  close_dfsc2 <- scale(close_df2)
+
+  
+  sensor_df <- dfa3[, i] %>% unlist
+  sensor_dfsc <- scale(sensor_df)
+  
+  tr_dat <- data.frame(sensor_df, close_df, close_df2,
+                       Time = as.integer(dfa3$Time),
+                       Date_Time = dfa3$Date_Time,
+                       HDay = dfa3$HDay) %>%
+            gather(key = Sensor, value = Count, sensor_df:close_df2)
+  
+  tr_dat_sc <- data.frame(sensor_dfsc, close_dfsc, close_dfsc2,
+                       Time = as.integer(dfa3$Time),
+                       Date_Time = dfa3$Date_Time,
+                       HDay = dfa3$HDay) %>%
+            gather(key = Sensor, value = Count, sensor_dfsc:close_dfsc2)
+  
+p1 <- ggplot(tr_dat %>% filter(Date_Time < "2017-03-02",
+                         Date_Time > "2017-02-26")) +
+      geom_line(aes(x = Date_Time, y = Count,
+                    colour = Sensor), size = 2) +
+      scale_colour_viridis(discrete = TRUE,
+                           labels = c("Neighbour 1 (Flinders St Station Underpass)",
+                                      "Neighbour 2 (Sandridge Bridge)",
+                                      "Target (Southbank)")) +
+      xlab("Time") + theme_minimal() + ggtitle("Unscaled Neighbours") +
+      theme(legend.position = "none", plot.title = element_text(hjust = 0.5))
+      
+p2 <- ggplot(tr_dat_sc %>% filter(Date_Time < "2017-03-02",
+                         Date_Time > "2017-02-26")) +
+      geom_line(aes(x = Date_Time, y = Count,
+                    colour = Sensor), size = 2) +
+      scale_colour_viridis(discrete = TRUE,
+                           labels = c("Neighbour 1 (Flinders St Station Underpass)",
+                                      "Neighbour 2 (Sandridge Bridge)",
+                                      "Target (Southbank)")) +
+      xlab("Time") + ggtitle("Scaled/Stadardised Neighbours") +
+      ylab("Standard Deviations") + theme_minimal() +
+      theme(legend.position = "bottom", plot.title = element_text(hjust = 0.5))
+```
+
+
+```{r, echo = FALSE, message = FALSE, warning = F, fig.width = 6, fig.height = 3}
+grid.arrange(p1, p2, ncol = 1)
+```
+
+In order to use a mixture of the patterns from two different sensors, we need to use the scaled counts at the neighbouring sensors to avoid the magnitude of the counts having an effect on the predicted counts. We scale the counts by standardising to $\mu = 0, \sigma^2 = 1$. Because the covariance with neighbouring sensors may vary over time, we also add an interaction term between the neighbouring sensor counts and the time of the day. 
+
+# Implementation of improved imputation algorithm
+
+The exact code used for this paper can be found on http://github.com/gavinchin/honours2017 
+
+### False zero-counts correction
+
+The false zero-counts correction is performed in R using the run length encoding function, `rle()`. This function computes the length and values of runs of equal values in a vector. Unfortunately, this function does not recognise `NA` in the its computation, so all NA values are initially recoded to take the value 0 at each sensor. This results in all missing values and true zero counts to take the value zero when running `rle()`. With the returned run lengths, all sequences of repeated values longer than the defined length of 6 hours are replaced with `NA`. Any values which were also originally missing, but were not missing for longer than 6 hours (and hence are still coded as 0), are recoded to be `NA`. It must be noted that sequences of repeated values not equal to zero which run for longer that 6 hours would be incorrectly replaced with `NA`. This is highly unlikely, however, as 6 hours of the exact same pedestrian counts would be extremely rare.  
+
+### Caculation of proportion of missing values and classification of sensors
+
+In the working data, a wide format is used. This makes it easier to calculate missing value proportion at each sensor location, as it is the proportion of missing values in the column for each sensor. Using `is.na()` returns a logical vector indicating whether the sensor count is missing/`NA` or not. The sum of the instances where `is.na = TRUE` divided by the hours in the period of 2014-2016 is computed to get the proportion of missing values.  
+
+These proportions are saved for each sensor and then classified as either "large" or "small" based on a threshold value for the proportion. A list of sensors with large proportions of missing data and a list of sensors with small proportions of missing data is generated.
+
+### Estimation of GLM at sensor locations with a small proportion of missing values
+
+A for loop is used to estimate the GLM specified:
+```{r, echo = TRUE, eval = FALSE}
+glm(dfa[, i] ~ Month + DayType*Time, data = dfa,
+    family = quasipoisson())
+```
+where `dfa` is the object name given to the data frame containing the training data after the false zero-count correction, and `i` is the $i^{th{}}$ sensor in the list of sensors with a small proportion of missing values. These models are stored in a list, forming a list of models. An alternative approach to using a for loop in R is splitting the data into separate data frames for each sensor location (forming a list of data frames) and applying the `glm()` function on each data frame in the list using the function `purrr::map()`. However, when this was attempted, performance issues were encountered due to the large size of the estimated model objects in R. This was not an issue when a for loop was used. Additional code for removing unnecessary elements of the GLM model object before storing to the list of models, reduucing the memory usage.  
+
+### Imputation at sensor locations with a small proportion of missing values
+
+The predicted values are obtained using `predict.glm()`, using the option `type = "response"` to have predicted values returned predicted counts. The default option returns the predicted values of $\hat{\lambda}$ in the quasipoisson process, not the counts, $\exp (\hat{\lambda})$.  
+Missing values are then replaced using the imputed values, generating a data frame of complete data as sensor locations for with a small proportion of missing values to be used for prediction at sensors with a large proportion of missing values.
+
+### Estimation procedure at sensor locations with a large proportion of missing values
+The following steps are performed on each sensor with a large proportion of missing values inside a for loop.
+
+##### Finding neighbouring sensors
+Using location data of the sensors provided by the City of Melbourne, a data frame containing the latitude and longitude coordinates of all the sensors which were classified as having a small proportion of missing values (and now have imputed, complete data), which are the candidates to be neighbours used for prediction.  
+Using the Great Circle/Haversine distance equation, implemented in the function `gcd.slc()` from , an approximation of distance between each of the candidate sensors is calculated in and stored as a vector. Sorting by ascending order (using `sort()`) and taking the two smallest distances with `head(., 2)` returns the two geographically closest candidate neighbours.  
+
+##### Extracting neighbouring sensors counts and standardising
+
+Using the sensor location names, the neighbouring sensors counts are extracted from the imputed training data and each vector is standardised to $\mu = 0, \sigma^2 = 1$ using the base R function `scale()` then stored.  
+
+##### GLM estimation
+
+The GLM for sensor locations with a large proportion of missing values also uses `glm()` as follows:
+```{r, echo = TRUE, eval = FALSE}
+glm(dfa[, i] ~ Time*close_dfsc + Time*close_dfsc2,
+    data = dfa, family = quasipoisson())
+```
+where `dfa[, i]` is the vector of pedestrian counts for the sensor being estimated, `Time` is the factor level for the hour of the day and `close_dfsc` and `close_dfsc2` are the standardised pedestrian counts at two geographically closest sensors.  
+Like the GLM for sensor locations with a small proportion of missing values, the model object is slim down to remove unnecessary elements to reduce memory usage. It is also noteworthy that the computational burden of the procedure for imputation using neighbouring sensors is significantly less due to less parameters being estimated.
+
+##### Replacing missings with imputed values  
+Unlike the GLM used for imputation for sensors with a small proportion of missing values, the model for neighbouring sensors requires transformation of the counts at the neighbours for imputation. As a consequence, it is more efficient to use `predict.glm()` inside the for loop as the neighbouring sensor counts have already been standardised when used for training the GLM. Again, the option `type = "response"` is specified to return predicted counts.
+
+## Imputation Results  
+
+Firstly, we evaluate the initial model used to impute:
+$$\text{where } \quad \mu_{\text{Sensor}, \text{HDay}, \text{Time}} \sim \text{Time}\times \text{HDay} \tag{1}$$
+
+Note, this is also after the adjustments made to treat suspiciously long sequences of 0 values as `NA` in the actual counts. The simple GLM model is trained before this correction, while the improved model is trained on the adjusted data.
+
+For the purposes of evaluating the imputation method at a location with a small proportion of missing values, we will first look at the counts from Southern Cross Station. At this sensor, the proportion of missing values (adjusted) is `r round(na_prop["Southern Cross Station"]*100,2)`Firstly, we evaluate the goodness of fit of the predictions made within the training period (01/01/2014 to 31/12/2016).
+
+```{r, fig.cap = "A plot of the in-sample Actual vs Predicted pedestrian counts at Southern Cross Station (sensor location with small proportion of missing values) for the simple GLM model and the improved GLM model. The dashed line is $x=y$, representing a reference for perfect fit, while solid line is the linear fit of the points."}
+p1 <- ggplot(data = NULL, aes(x = original_df %>% 
+             filter(Date_Time < "2017-01-01") %>%
+             .[, "Southern Cross Station"],
+           y = fitted_base$`Southern Cross Station`)) +
+           geom_point(alpha = 0.05) +
+           geom_abline(aes(slope = 1, intercept = 0),
+                       colour = viridis(3)[1],
+                       alpha = 0.7, size = 1.25,
+                       linetype = 2) +
+           geom_smooth(method = "lm", size = 1.25, alpha = 0.7, 
+                       colour = viridis(3)[3]) +
+           theme_minimal() + 
+           theme(aspect.ratio = 1,
+                 plot.title = element_text(hjust = 0.5)) +
+           scale_x_continuous(limits = c(0, 4000)) +
+           scale_y_continuous(limits = c(0, 4000)) +
+           xlab("Actual Pedestrian Count") +
+           ylab("Predicted Pedestrian Count")
+p2 <- ggplot(data = NULL, aes(x = original_df %>% 
+             filter(Date_Time < "2017-01-01") %>%
+             .[, "Southern Cross Station"],
+           y = fitted_data$`Southern Cross Station`)) +
+           geom_point(alpha = 0.05) +
+           geom_abline(aes(slope = 1, intercept = 0),
+                       colour = viridis(3)[1],
+                       alpha = 0.7, size = 1.25,
+                       linetype = 2) +
+           geom_smooth(method = "lm", size = 1.25, alpha = 0.7, 
+                       colour = viridis(3)[3]) +
+           theme_minimal() + 
+           theme(aspect.ratio = 1,
+                 plot.title = element_text(hjust = 0.5)) +
+           scale_x_continuous(limits = c(0, 4000)) +
+           scale_y_continuous(limits = c(0, 4000)) +
+           xlab("Actual Pedestrian Count") +
+           ylab("Predicted Pedestrian Count")
+grid.arrange(p1, p2, nrow = 1)
+```
+
+Visually, we can see that the fitted values are good estimates as the relationship between the actuals vs fitted is very close to 1:1. This is seen when we perform a least squares estimate of $\widehat{Fitted}_t = \hat{\beta}_0 + \hat{\beta}_1 Actual_t$, and the estimated $\hat{\beta}_0$ is close to 0 and $\hat{\beta}_1$ is close to 1. 
+
+Here we see that the GLM model with only time and date based variables work well for fitting small periods of missing data.  
+
+However, if we try to use this same model specification at sensor locations with large proportions of missing values, the fit is poor. We use the sensor at Australia on Collins, where the proportion of missing values is `r round(na_prop["Australia on Collins"]*100, 2)`%. 
+```{r}
+options(na.action = na.omit)
+p1 <- ggplot(data = NULL, aes(x = ori_2[-(is.na(ori_2$`Australia on Collins`)), ] %>% 
+             filter(Date_Time < "2017-01-01") %>%
+             .[, "Australia on Collins"])) +
+           geom_point(aes(y = fitted_base$`Australia on Collins`[-(is.na(ori_2$`Australia on Collins`))]),
+                      alpha = 0.05) +
+           geom_abline(aes(slope = 1, intercept = 0),
+                       colour = viridis(3)[1],
+                       alpha = 0.7, size = 1.25,
+                       linetype = 2) +
+           geom_smooth(aes(y = fitted_base$`Australia on Collins`[-(is.na(ori_2$`Australia on Collins`))]),
+                       method = "lm", size = 1.25, alpha = 0.7, 
+                       colour = viridis(3)[3]) +
+           theme_minimal() + theme(aspect.ratio = 1,
+                                   plot.title = element_text(hjust = 0.5)) +
+           scale_x_continuous(limits = c(0, 4000)) +
+           scale_y_continuous(limits = c(0, 4000)) +
+           xlab("Actual Pedestrian Count") +
+           ylab("Predicted Pedestrian Count") +
+           ggtitle("Simple GLM Model: Actual v. Predicted \n at Australia on Collins")
+p2 <- ggplot(data = NULL, aes(x = ori_2[-(is.na(ori_2$`Australia on Collins`)), ] %>% 
+             filter(Date_Time < "2017-01-01") %>%
+             .[, "Australia on Collins"])) +
+           geom_point(aes(y = fitted_data$`Australia on Collins`[-(is.na(ori_2$`Australia on Collins`))]),
+                      alpha = 0.05) +
+           geom_abline(aes(slope = 1, intercept = 0),
+                       colour = viridis(3)[1],
+                       alpha = 0.7, size = 1.25,
+                       linetype = 2) +
+           geom_smooth(aes(y = fitted_data$`Australia on Collins`[-(is.na(ori_2$`Australia on Collins`))]),
+                       method = "lm", size = 1.25, alpha = 0.7, 
+                       colour = viridis(3)[3]) +
+           theme_minimal() + theme(aspect.ratio = 1,
+                                   plot.title = element_text(hjust = 0.5)) +
+           scale_x_continuous(limits = c(0, 4000)) +
+           scale_y_continuous(limits = c(0, 4000)) +
+           xlab("Actual Pedestrian Count") +
+           ylab("Predicted Pedestrian Count") +
+           ggtitle("Improved GLM Model: Actual v. Predicted \n at Australia on Collins")
+```
+
+```{r, fig.cap = paste("A plot of the in-sample Actual vs Predicted pedestrian counts at Australia on Collins (sensor location with large proportion of missing values) for the simple GLM model and the improved GLM model. The dashed line is $x=y$, representing a reference for perfect fit, while solid line is the linear fit of the points.")}
+
+grid.arrange(p1, p2, nrow = 1)
+
+```
+
+We can see that the simple model has bias caused by the false zero counts, resulting in the predicted values to be underestimated. This is shown by the slope of the fitted line on the actual counts against predicted counts being $<1$, emphasising the importance of the first step taken in the algorithm of the improved model to class the false zero counts as missing values. 
+
+The criterion we will use to measure goodness of fit is MARE. It is calculated by:
+
+$$MARE_{sensor} =  \frac{1}{T^2} \frac{\sum_{t=1}^T \vert \widehat{\text{HourlyCounts}}_{sensor,t} - \text{HourlyCounts}_{sensor,t} \vert}{\sum_{t=1}^T \text{HourlyCounts}_{sensor,t}}$$
+
+We calculate a seperate MARE for predictions in-sample (in the training set) and the predictions out of sample (test set of 2017 data). This will help to identify overfitting of the data. We use MARE as it will be a comparable measure between sensor locations as well as comparable between models. 
+
+```{r}
+MARE_base_glm_tr <- numeric()
+for (i in unique(ped_data$Sensor)){
+  MARE_base_glm_tr[i] <- mean(abs(fitted_base[[i]] - unlist(dfa[, i])), na.rm = T) / mean(unlist(dfa[, i]), na.rm = T)
+}
+
+MARE_tr <- numeric()
+for (i in unique(ped_data$Sensor)){
+  MARE_tr[i] <- mean(abs(fitted_data[[i]] - unlist(dfa[, i])), na.rm = T) / mean(unlist(dfa[, i]), na.rm = T)
+}
+
+mare_df <- data.frame(simple = MARE_base_glm_tr, improved = MARE_tr, ids) %>%
+           gather(model, mare, simple:improved)
+p1 <- ggplot(mare_df) + geom_boxplot(aes(x = model, y = mare, fill = model),
+                                     width = .5, alpha = 0.5) +
+      labs(x = "Model", y = "In-Sample MARE") +
+      scale_fill_viridis(discrete = TRUE, name = "Model")
+
+p2 <- ggplot(mare_df) + geom_density(aes(x = mare, fill = model,
+                                         colour = model), adjust = 1.3,
+                                     alpha = 0.5) +
+      scale_fill_viridis(discrete = TRUE) +
+      scale_colour_viridis(discrete = TRUE) +
+      theme_minimal() + theme(plot.title = element_text(hjust = 0.5),
+                              legend.position = "none") +
+      labs(x = "In-sample MARE")
+p3 <- ggplot() + geom_point(aes(x = MARE_base_glm_tr, y = MARE_tr,
+                                colour = (MARE_tr<MARE_base_glm_tr))) +
+      geom_abline(aes(slope = 1, intercept = 0)) +
+      scale_colour_viridis(discrete = TRUE, option = "C",
+                           begin = 0.15, end = 0.85,
+                           direction = -1,
+                           name = "Improved Model is better") +
+      theme_minimal() + labs(x = "Simple MARE", y = "Improved MARE") +
+      theme(aspect.ratio = 1, legend.position = "bottom",
+            legend.direction = "vertical")
+```
+
+```{r, fig.height=1, fig.width=6, fig.cap = paste("Distribution of in-sample (2014-2016 data) MARE by imputation model")}
+
+grid.arrange(p1, p2, p3, nrow = 1)
+
+```
+
+While it is not very clear when comparing the distribution of in-sample MARE between imputation models, when we compare the in-sample MARE at each location we can see that the majority of locations had better in-sample fit with the improved model using the algorithm. We do see that some locations did have worse in-sample fit, but overall we see improvement with `r sum(MARE_base_glm_tr > MARE_tr)` having better fit with the improved model over the simple model. 
+
+Focusing on the date 04/07/2014, which has 3 hours of missing data at Southern Cross Station:  
+
+```{r, fig.height = 2, fig.width = 5, fig.align='center', fig.cap="A plot of the pedestrian counts at Southern Cross Station. The black line is the observed counts, where the yellow line is the imputed counts."}
+fit_dat_plot <- data.frame(Date_Time = dfa2$Date_Time,
+                           fit_ = dfa2$`Southern Cross Station`) %>%
+                  filter(Date_Time < "2014-07-06 00:00:00",
+                         Date_Time > "2014-07-04 12:00:00") %>%
+                        .$fit_
+
+ggplot(original_df %>%  filter(Date_Time < "2014-07-06 00:00:00",
+                               Date_Time > "2014-07-04 12:00:00")) +
+  geom_line(aes(x = Date_Time, y = fit_dat_plot), colour = viridis(3)[3],
+            size = 2) +
+  geom_line(aes(x = Date_Time, y = `Southern Cross Station`),
+            size  = 2) +
+  theme_minimal() + xlab("Time") +
+  ylab("Pedestrian Counts") +
+  ggtitle("Pedestrian Counts at Southern Cross Station \n on 04/07/2014 - 05/07/2014") +
+  theme(plot.title = element_text(hjust = 0.5)) 
+```
+
+More importantly, we can evaluate the performance of the model on the out of sample observations (2017 data) as cross validation. Due to potential false zero counts in the test data sourced from `rwalkr::walk_melb()`, we need to again apply the correction by long sequences of repeated values to be able to properly evaluate the goodness of fit of out-of-sample observations. The method used for this is identical to that used on the training set in the algorithm, replacing sequences of length 6 hours or longer with `NA`.
+
+```{r ts_fix0}
+for(i in unique(ped_data$Sensor)){
+    ori_ts[is.na(ori_ts[, i]), i] <- 0
+    na_length_check <- rle(as.numeric(unlist(ori_ts[,i])))
+    maybeNA <- rep((na_length_check$lengths > threshold_miss_hrs), times = na_length_check$lengths)
+    rl <- ori_ts[, i] %>% unlist %>% rle()
+    ori_ts[maybeNA, i] <- NA
+    defsNA <- is.na(ori_ts2[, i])
+    ori_ts[defsNA, i] <- NA
+  }
+```
+
+
+```{r test_fit}
+test_base <- list()
+test_fit <- list()
+ts <- original_df %>% filter(Date_Time > "2016-12-31")
+ 
+ for(i in unique(ped_data$Sensor)){
+    test_base[[i]] <- predict.glm(models_base[[i]], newdata = ts,
+                                  type = "response")
+ }
+
+ for(i in small_miss_sensors){
+   test_fit[[i]]  <- predict.glm(models[[i]], newdata = ts,
+                                 type = "response")
+ }
+ for(i in large_miss_sensors){
+   sensor_dists <- numeric()
+  for (j in small_miss_sensors){
+      dists <- gcd.slc(loc[i,]$lons, loc[i,]$lats, loc[j,]$lons, loc[j,]$lats)
+      sensor_dists[j] <- dists
+  }
+  names(sensor_dists) <- small_miss_sensors
+  closest_sensor <- sensor_dists %>% sort %>%
+                    head(2) %>% names
+  close_df_scale <- ts[, closest_sensor[1]] %>% unlist %>% scale
+  close_df_scale2 <- ts[, closest_sensor[2]] %>% unlist %>% scale
+  
+  ts_sc <- data.frame(close_df_scale, close_df_scale2, Time = ts$Time)
+  
+  test_fit[[i]] <- predict.glm(models[[i]], newdata = ts_sc,
+                               type = "response")
+  
+ }
+
+MARE_base_ts <- numeric()
+for (i in unique(ped_data$Sensor)){
+  MARE_base_ts[i] <- mean(abs(test_base[[i]] - unlist(ori_ts2[, i])), na.rm = T) / mean(unlist(ori_ts2[, i]), na.rm = T)
+}
+
+MARE_ts <- numeric()
+for (i in unique(ped_data$Sensor)){
+  MARE_ts[i] <- mean(abs(test_fit[[i]] - unlist(ori_ts2[, i])), na.rm = T) / mean(unlist(ori_ts2[, i]), na.rm = T)
+}
+```
+
+Again, we start by comparing the fit at a sensor location with a small proportion of missing values, Melbourne Central:
+
+```{r, fig.height=3, fig.width=6, fig.cap = "A plot of the out-of-sample (2017) Actual vs Predicted pedestrian counts at Melbourne Central (sensor location with small proportion of missing values) for the simple GLM model and the improved GLM model. The dashed line is $x=y$, representing a reference for perfect fit, while solid line is the linear fit of the points."}
+p1 <- ggplot(data = NULL, aes(x = ori_ts[, "Melbourne Central"],
+           y = test_base$`Melbourne Central`)) +
+           geom_point(alpha = 0.05) +
+           geom_abline(aes(slope = 1, intercept = 0),
+                       colour = viridis(3)[1],
+                       alpha = 0.7, size = 1.25,
+                       linetype = 2) +
+           geom_smooth(method = "lm", size = 1.25, alpha = 0.7, 
+                       colour = viridis(3)[3]) +
+           theme_minimal() + 
+           theme(aspect.ratio = 1,
+                 plot.title = element_text(hjust = 0.5)) +
+           scale_x_continuous(limits = c(0, 4000)) +
+           scale_y_continuous(limits = c(0, 4000)) +
+           xlab("Actual Pedestrian Count") +
+           ylab("Predicted Pedestrian Count") +
+           ggtitle("Simple GLM Model: Actual v. Predicted \n at Melbourne Central")
+p2 <- ggplot(data = NULL, aes(x =ori_ts[, "Melbourne Central"],
+           y = test_fit$`Melbourne Central`)) +
+           geom_point(alpha = 0.05) +
+           geom_abline(aes(slope = 1, intercept = 0),
+                       colour = viridis(3)[1],
+                       alpha = 0.7, size = 1.25,
+                       linetype = 2) +
+           geom_smooth(method = "lm", size = 1.25, alpha = 0.7, 
+                       colour = viridis(3)[3]) +
+           theme_minimal() + 
+           theme(aspect.ratio = 1,
+                 plot.title = element_text(hjust = 0.5)) +
+           scale_x_continuous(limits = c(0, 4000)) +
+           scale_y_continuous(limits = c(0, 4000)) +
+           xlab("Actual Pedestrian Count") +
+           ylab("Predicted Pedestrian Count") +
+           ggtitle("Improved GLM Model: Actual v. Predicted \n at Melbourne Central")
+grid.arrange(p1, p2, nrow = 1)
+```
+
+We find that the out-of-sample predictions of at Melbourne Central by the simple model has a tendency to underestimate the pedestrian counts. By comparison, the predictions made by the improved imputation model does not underestimate the counts as much. Comparing the out-of-sample MARE between models at Melbourne Central, MARE decreases from `r round(MARE_base_ts["Melbourne Central"]*100, 2)`% to `r round(MARE_ts["Melbourne Central"]*100, 2)`% with the use of the improved model. 
+
+```{r, fig.height=3, fig.width=6, fig.cap = "A plot of the out-of-sample (2017) Actual vs Predicted pedestrian counts at Collins Place (South) (sensor location with large proportion of missing values) for the simple GLM model and the improved GLM model. The dashed line is $x=y$, representing a reference for perfect fit, while solid line is the linear fit of the points."}
+p1 <- ggplot(data = NULL, aes(x = ori_ts[, "Collins Place (South)"],
+           y = test_base$`Collins Place (South)`)) +
+           geom_point(alpha = 0.05) +
+           geom_abline(aes(slope = 1, intercept = 0),
+                       colour = viridis(3)[1],
+                       alpha = 0.7, size = 1.25,
+                       linetype = 2) +
+           geom_smooth(method = "lm", size = 1.25, alpha = 0.7, 
+                       colour = viridis(3)[3]) +
+           theme_minimal() + 
+           theme(aspect.ratio = 1,
+                 plot.title = element_text(hjust = 0.5)) +
+           scale_x_continuous(limits = c(0, 2500)) +
+           scale_y_continuous(limits = c(0, 2500)) +
+           xlab("Actual Pedestrian Count") +
+           ylab("Predicted Pedestrian Count") +
+           ggtitle("Simple GLM Model: Actual v. Predicted \n at Collins Place (South)")
+p2 <- ggplot(data = NULL, aes(x =ori_ts[, "Collins Place (South)"],
+           y = test_fit$`Collins Place (South)`)) +
+           geom_point(alpha = 0.05) +
+           geom_abline(aes(slope = 1, intercept = 0),
+                       colour = viridis(3)[1],
+                       alpha = 0.7, size = 1.25,
+                       linetype = 2) +
+           geom_smooth(method = "lm", size = 1.25, alpha = 0.7, 
+                       colour = viridis(3)[3]) +
+           theme_minimal() + 
+           theme(aspect.ratio = 1,
+                 plot.title = element_text(hjust = 0.5)) +
+           scale_x_continuous(limits = c(0, 2500)) +
+           scale_y_continuous(limits = c(0, 2500)) +
+           xlab("Actual Pedestrian Count") +
+           ylab("Predicted Pedestrian Count") +
+           ggtitle("Improved GLM Model: Actual v. Predicted \n at Collins Place (South)")
+grid.arrange(p1, p2, nrow = 1)
+```
+
+At a sensor location with a large proportion of missing values, Collins Place (South), we again see a tendency to underestimate counts with the simple imputation model. The improved imputation method reduces the underestimation of the predictions and provides better predictions. The MARE is greatly improved, where it decreases from `r round(MARE_base_ts["Collins Place (South)"]*100, 2)`% to `r round(MARE_ts["Collins Place (South)"]*100, 2)`% with the use of the improved model. 
+
+```{r}
+MARE_base_ts2 <- MARE_base_ts[setdiff(unique(ped_data$Sensor),
+                                      c("Spencer St-Collins St (South)",
+                                        "Spencer St-Collins St (North)",
+                                        "Flinders St-Swanston St (West)"))]
+MARE_ts2 <- MARE_ts[setdiff(unique(ped_data$Sensor),
+                                      c("Spencer St-Collins St (South)",
+                                        "Spencer St-Collins St (North)",
+                                        "Flinders St-Swanston St (West)"))]
+
+mare_df <- data.frame(simple = MARE_base_ts2, improved = MARE_ts2) %>%
+           gather(model, mare, simple:improved)
+
+p1 <- ggplot(mare_df) + geom_boxplot(aes(x = model, y = mare, fill = model),
+                                     width = .5, alpha = 0.5) +
+      labs(x = "Model", y = "Out-of-sample MARE") +
+      scale_fill_viridis(discrete = TRUE, name = "Model")
+
+p2 <- ggplot(mare_df) + geom_density(aes(x = mare, fill = model,
+                                         colour = model), adjust = 1.3,
+                                     alpha = 0.5) +
+      scale_fill_viridis(discrete = TRUE) +
+      scale_colour_viridis(discrete = TRUE) +
+      theme_minimal() + theme(plot.title = element_text(hjust = 0.5),
+                              legend.position = "none") +
+      labs(x = "Out-of-sample MARE")
+p3 <- ggplot() + geom_point(aes(x = MARE_base_ts2, y = MARE_ts2,
+                                colour = (MARE_ts2<MARE_base_ts2))) +
+      geom_abline(aes(slope = 1, intercept = 0)) +
+      scale_colour_viridis(discrete = TRUE, option = "C",
+                           begin = 0.15, end = 0.85,
+                           direction = -1,
+                           name = "Improved Model is better") +
+      scale_x_continuous(limits = c(0,1)) +
+      scale_y_continuous(limits = c(0,1)) +
+      theme_minimal() + labs(x = "Simple MARE", y = "Improved MARE") +
+      theme(aspect.ratio = 1, legend.position = "bottom",
+            legend.direction = "vertical")
+```
+
+```{r, fig.height=1, fig.width=6, fig.cap = paste("Distribution of out-of-sample (2017 data) MARE by imputation model, excluding Spencer St-Collins St (North)/(South) and Flinders St-Swanston St (West) sensors")}
+
+grid.arrange(p1, p2, p3, nrow = 1)
+
+```
+
+Spencer St-Collins St (North)/(South) and Flinders St-Swanston St (West) was omitted from the the plots above as the out-of-sample MARE is extremely high at `r round(MARE_ts["Spencer St-Collins St (North)"]*100, 2)`%, `r round(MARE_ts["Spencer St-Collins St (South)"]*100, 2)`% and `r round(MARE_ts["Flinders St-Swanston St (West)"]*100, 2)`% respectively. 
+
+As these sensor locations were both classified as locations with a large proportion of missing values, it would appear that the relationship between these locations and their neighbouring sensors has changed. This is because the in-saple MARE at these sensor locations were quite acceptable at `r round(MARE_tr["Spencer St-Collins St (North)"]*100, 2)`%, `r round(MARE_tr["Spencer St-Collins St (South)"]*100, 2)`% and `r round(MARE_tr["Flinders St-Swanston St (West)"]*100, 2)`% respectively. 
+
+```{r, fig.width = 6, fig.height = 3, fig.cap="Average pedestrian counts by time of day and type of day (DayType) at Spencer St-Collins St (South) for training data (dark line) and test data (light line)"}
+ggplot() + geom_smooth(aes(x = as.integer(Time),
+                           y = `Spencer St-Collins St (South)`),
+                       colour = viridis(3)[1],
+                       data = dfa2) +
+           geom_smooth(aes(x = as.integer(Time),
+                           y = `Spencer St-Collins St (South)`),
+                       colour = viridis(3)[3],
+                       data = ori_ts2) +
+           theme_minimal() + labs(x = "Time of Day") +
+           facet_wrap(~ DayType)
+```
+
+The plot of the average counts by time of day and type of day and data set shows that this location saw an increase in counts on weekdays which did not occur at the neghbouring sensors. We also see that the pattern is slightly different during weekdays, with a higher afternoon/evening peak. These types of change in pedestrian traffic behaviour is hard to capture in our imputation model, especially when its neighbours did not have a similar change. While we can add a year variable to allow for year to year growth, the short period of training data doesn't make this appropriate at this stage.  
+
+Another way we can perform cross-validation is to remove data at a sensor, and evaulate the predictions made. This will allow us to evaluate the imputation model's performance within sample, which is the primary concern with them imputation process.  
+We select a sensor which has a small proportion of missing values, Bourke Street Mall (South), which has `r round((1 - na_prop["Bourke Street Mall (South)"])*100, 3)`% of data available. As observed in the data, missing data is present in different ways: random, short periods of missing data (no more that 6 hours) or long periods of missing data (multiple months). We will simulate both types of missingness at this sensor location.  
+
+First, data is randomly removed such that 20% of the training data is missing, then the imputation model is estimated. Using the estimated model, the MARE within the training data is calculated (in-sample MARE).
+```{r}
+miss_idx <- sample(1:nrow(dfa2), round(nrow(dfa2)*0.2))
+
+mall_missing_1 <- dfa2$`Bourke Street Mall (South)`
+mall_missing_1[miss_idx] <- NA
+
+i <- "Bourke Street Mall (South)"
+sensor_dists <- numeric()
+  for (j in small_miss_sensors[-6]){
+      dists <- gcd.slc(loc[i,]$lons, loc[i,]$lats, loc[j,]$lons, loc[j,]$lats)
+      sensor_dists[j] <- dists
+  }
+  names(sensor_dists) <- small_miss_sensors[-6]
+  closest_sensor <- sensor_dists %>% sort %>%
+                    head(2) %>% names
+  close_df <- dfa2[, closest_sensor[1]] %>% unlist
+  close_df2 <- dfa2[, closest_sensor[2]] %>% unlist
+  
+  close_df_scale <- scale(close_df)
+  close_df_scale2 <- scale(close_df2)
+
+  
+  sensor_df <- mall_missing_1 %>% unlist
+  sensor_dfsc <- scale(sensor_df)
+  
+  tr_dat <- data.frame(sensor_df, close_df_scale, close_df_scale2, Time = dfa2$Time)
+  
+  options(na.action = na.omit)
+  mall_model_1 <- glm(sensor_df ~ Time*close_df_scale + Time*close_df_scale2,
+               data = tr_dat, family = quasipoisson())
+  options(na.action = na.pass)
+  mall_fit_1 <- predict.glm(mall_model_1, newdata = tr_dat,
+                            type = "response")
+  options(na.action = na.omit)
+
+  mall_mare_1 <- mean(abs(mall_fit_1 - unlist(dfa2$`Bourke Street Mall (South)`)),
+                          na.rm = T) / mean(unlist(dfa2$`Bourke Street Mall (South)`),
+                                            na.rm = T)
+  
+```
+
+```{r, fig.width = 5, fig.height=2, fig.cap = "Plot of simulated missingness method 1 at Bourke Street Mall (South). 20% of the observations are removed from the traning data for the imputation model at random."}
+ggplot() + geom_line(aes(x = dfa2$Date_Time, y = mall_missing_1),
+                     size = 0.1, alpha = 1) +
+           labs(y = "Pedestrian Count", x = "Time and Date") +
+          theme_minimal() + theme(plot.title = element_text(hjust = 0.5))
+```
+
+With random hours of missing data, the predictions made by using neighbouring sensors  are estimated with good accuracy with a low MARE of `r round(mall_mare_1*100, 2)`%. Unfortunately, this type of missingness is not consistent with what is generally observed at most sensors with large proportions of missing data.  
+
+Instead, a more meaningful method is to remove 20% of the data in a single period to simulate what is typically observed. A random date is taken and then 2629 hours of data is removed before and after this date (10% before, 10% after). The imputation model is estimated again in order to calculate a MARE.
+
+```{r}
+miss_seed <- max(sample(1:nrow(dfa2),1) - 2629, 0)
+miss_idx <- seq(miss_seed, miss_seed + 5258)
+
+mall_missing_2 <- dfa2$`Bourke Street Mall (South)`
+mall_missing_2[miss_idx] <- NA
+
+i <- "Bourke Street Mall (South)"
+sensor_dists <- numeric()
+  for (j in small_miss_sensors[-6]){
+      dists <- gcd.slc(loc[i,]$lons, loc[i,]$lats, loc[j,]$lons, loc[j,]$lats)
+      sensor_dists[j] <- dists
+  }
+  names(sensor_dists) <- small_miss_sensors[-6]
+  closest_sensor <- sensor_dists %>% sort %>%
+                    head(2) %>% names
+  close_df <- dfa2[, closest_sensor[1]] %>% unlist
+  close_df2 <- dfa2[, closest_sensor[2]] %>% unlist
+  
+  close_df_scale <- scale(close_df)
+  close_df_scale2 <- scale(close_df2)
+
+  
+  sensor_df <- mall_missing_2 %>% unlist
+  sensor_dfsc <- scale(sensor_df)
+  
+  tr_dat <- data.frame(sensor_df, close_df_scale, close_df_scale2, Time = dfa2$Time)
+  
+  options(na.action = na.omit)
+  mall_model_2 <- glm(sensor_df ~ Time*close_df_scale + Time*close_df_scale2,
+               data = tr_dat, family = quasipoisson())
+  options(na.action = na.pass)
+  mall_fit_2 <- predict.glm(mall_model_2, newdata = tr_dat,
+                            type = "response")
+  options(na.action = na.omit)
+
+  mall_mare_2 <- mean(abs(mall_fit_2 - unlist(dfa2$`Bourke Street Mall (South)`)),
+                          na.rm = T) / mean(unlist(dfa2$`Bourke Street Mall (South)`),
+                                            na.rm = T)
+  
+```
+
+
+```{r, fig.width = 5, fig.height=2, fig.cap = "Plot of simulated missingness method 2 at Bourke Street Mall (South) with 20% of the training data removed as a sequence. This method of simulating missing data is a better representation of the missing data observed at sensors with a large proportion of missing data compared to randomly removing hourly observations from the training data."}
+ggplot() + geom_line(aes(x = dfa2$Date_Time, y = mall_missing_2),
+                size = 0.1, alpha = 1) +
+           labs(y = "Pedestrian Count", x = "Time and Date") +
+          theme_minimal() + theme(plot.title = element_text(hjust = 0.5))
+```
+
+The MARE of the estimated model is `r round(mall_mare_2*100, 2)`%, which is similar to what was obtained when the missing values were random. This demonstrates that the model quite well when we remove 20% of the observations from the training data. 
+
+
+```{r}
+miss_seed <- min(max(sample(1:nrow(dfa2),1) - 6573, 0), 13146)
+miss_idx <- seq(miss_seed, miss_seed + 13146)
+
+mall_missing_3 <- dfa2$`Bourke Street Mall (South)`
+mall_missing_3[miss_idx] <- NA
+
+i <- "Bourke Street Mall (South)"
+sensor_dists <- numeric()
+  for (j in small_miss_sensors[-6]){
+      dists <- gcd.slc(loc[i,]$lons, loc[i,]$lats, loc[j,]$lons, loc[j,]$lats)
+      sensor_dists[j] <- dists
+  }
+  names(sensor_dists) <- small_miss_sensors[-6]
+  closest_sensor <- sensor_dists %>% sort %>%
+                    head(2) %>% names
+  close_df <- dfa2[, closest_sensor[1]] %>% unlist
+  close_df2 <- dfa2[, closest_sensor[2]] %>% unlist
+  
+  close_df_scale <- scale(close_df)
+  close_df_scale2 <- scale(close_df2)
+
+  
+  sensor_df <- mall_missing_3 %>% unlist
+
+  tr_dat <- data.frame(sensor_df, close_df_scale, close_df_scale2, Time = dfa2$Time)
+  
+  options(na.action = na.omit)
+  mall_model_3 <- glm(sensor_df ~ Time*close_df_scale + Time*close_df_scale2,
+               data = tr_dat, family = quasipoisson())
+  options(na.action = na.pass)
+  mall_fit_3 <- predict.glm(mall_model_3, newdata = tr_dat,
+                            type = "response")
+  options(na.action = na.omit)
+
+  mall_mare_3 <- mean(abs(mall_fit_3 - unlist(dfa2$`Bourke Street Mall (South)`)),
+                          na.rm = T) / mean(unlist(dfa2$`Bourke Street Mall (South)`),
+                                            na.rm = T)
+  
+```
+
+
+```{r, fig.width = 5, fig.height=2, fig.cap = "Plot of simulated missingness method 2 at Bourke Street Mall (South) with 50% of the training data removed as a sequence. A large proportion of the training data is removed to test the robustness of the imputation method used at sensors with extremely large proportions of missing data during the training period defined."}
+ggplot() + geom_line(aes(x = dfa2$Date_Time, y = mall_missing_3),
+                size = 0.1, alpha = 1) +
+           labs(y = "Pedestrian Count", x = "Time and Date") +
+          theme_minimal() + theme(plot.title = element_text(hjust = 0.5))
+```
+
+Removing 50% of the data using the same method, it is found that the in-sample MARE is not affected significantly by the larger proportion of missing training data where it is only `r round(mall_mare_3*100, 2)`%.

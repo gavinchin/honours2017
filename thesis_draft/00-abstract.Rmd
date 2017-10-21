@@ -1,0 +1,13 @@
+---
+knit: "bookdown::render_book"
+---
+
+# Abstract {-}
+
+The City of Melbourne provides an open data platform to access council datasets, with the intention "to increase transparency, improve public services and support new economic and social initiatives"[^1]. This paper will focus primarily on the pedestrian data collected from pedestrian sensors placed throughout Melbourne's CBD. In particular, we want to be able to model the pedestrian traffic at different locations in the CBD, and forecast the traffic. In addition, we aim to have an interactive, dynamic data visualisation of the model to help us to understand how Melbourne operates.
+
+
+<!-- 
+The following line is required to re-set page numbering after preliminary material. Do not remove
+-->
+\clearpage\pagenumbering{arabic}\setcounter{page}{0}
