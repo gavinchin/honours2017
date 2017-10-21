@@ -271,7 +271,7 @@ large_miss_sensors <- names(na_prop[na_prop > threshold])
 small_miss_sensors <- setdiff(names(na_prop), large_miss_sensors)
 ```
 
-```{r naprop_hist, fig.width=6, fig.height=3, fig.cap="Histograms of the proportions of missing values at each sensor during 2014 - 2016 when calculated before and after correction for false zero counts. The distributions of proportion of missing values at each sensor is significantly different after correcting for false zero counts in the data. This emphasises the necessity to correct for false zero counts as it will affect "}
+```{r naprop_hist, fig.width=6, fig.height=3, fig.cap=paste("Histograms of the proportions of missing values at each sensor during 2014 - 2016 when calculated before and after correction for false zero counts. The distributions of proportion of missing values at each sensor is significantly different after correcting for false zero counts in the data. This emphasises the necessity to correct for false zero counts as it will cause biased estimates.")}
 theme_g <- theme_minimal() +
            theme(plot.title = element_text(hjust = 0.5,
                                            size = 10))
@@ -339,7 +339,7 @@ Instead of `HDay`, we use `DayType` which classifies Tuesday, Wednesday and Thur
 
 Using these estimated models, we impute the missing values to produce complete data at all these sensor locations. For the locations with high proportions of missing values can be predicted using the now complete data from all the locations which had a small proportion of missing values. Using a threshold of 10%, this gives us `r length(small_miss_sensors)` sensor locations to use.  
 
-```{r, fig.width=4, fig.height=4, fig.align='center', fig.cap = "Map showing the algorithm selecting Flinders St Station Underpass and Sandridge Bridge as neighbours to be used to predict the pedestrian counts at Southbank"}
+```{r, fig.width=4, fig.height=4, fig.align='center', fig.cap = paste("Map showing the algorithm selecting Flinders St Station Underpass and Sandridge Bridge as neighbours by geographical distance to be used to predict the pedestrian counts at Southbank. The algorithm will not choose sensors with large proportions of missing values to be used as neighbours for prediction.")}
 ped_loc <- read_csv("../data/Pedestrian_sensor_locations.csv")
 lats <- ped_loc$Latitude
 lons <- ped_loc$Longitude
@@ -511,10 +511,10 @@ p1 <- ggplot(tr_dat %>% filter(Date_Time < "2017-03-02",
       geom_line(aes(x = Date_Time, y = Count,
                     colour = Sensor), size = 2) +
       scale_colour_viridis(discrete = TRUE,
-                           labels = c("Neighbour 1 (Flinders St Station Underpass)",
-                                      "Neighbour 2 (Sandridge Bridge)",
+                           labels = c("Flinders St Station Underpass",
+                                      "Sandridge Bridge",
                                       "Target (Southbank)")) +
-      xlab("Time") + theme_minimal() + ggtitle("Unscaled Neighbours") +
+      xlab("Time") + theme_minimal() +
       theme(legend.position = "none", plot.title = element_text(hjust = 0.5))
       
 p2 <- ggplot(tr_dat_sc %>% filter(Date_Time < "2017-03-02",
@@ -522,16 +522,16 @@ p2 <- ggplot(tr_dat_sc %>% filter(Date_Time < "2017-03-02",
       geom_line(aes(x = Date_Time, y = Count,
                     colour = Sensor), size = 2) +
       scale_colour_viridis(discrete = TRUE,
-                           labels = c("Neighbour 1 (Flinders St Station Underpass)",
-                                      "Neighbour 2 (Sandridge Bridge)",
+                           labels = c("Flinders St Station Underpass",
+                                      "Sandridge Bridge",
                                       "Target (Southbank)")) +
-      xlab("Time") + ggtitle("Scaled/Stadardised Neighbours") +
+      xlab("Time") + 
       ylab("Standard Deviations") + theme_minimal() +
-      theme(legend.position = "bottom", plot.title = element_text(hjust = 0.5))
+      theme(legend.position = "bottom", legend.direction = "vertical")
 ```
 
 
-```{r, echo = FALSE, message = FALSE, warning = F, fig.width = 6, fig.height = 3}
+```{r, echo = FALSE, message = FALSE, warning = F, fig.width = 6, fig.height = 5, fig.cap=paste("Plot of the time series at the sensor with missing values, Southbank, and it's neighbouring sensors, as pedestrian counts and standardised. Because the counts are standardised to `mean = 0` and `var = 1`, the standardised counts are also standard deviations. The curves for the standardised counts at neighbouring sensors of Southbank closely match that of the standardised counts at Southbank. This demonstrates the importance of scaling counts at the neighbours when using them as predictors.")}
 grid.arrange(p1, p2, ncol = 1)
 ```
 
@@ -616,7 +616,7 @@ p1 <- ggplot(data = NULL, aes(x = original_df %>%
            scale_x_continuous(limits = c(0, 4000)) +
            scale_y_continuous(limits = c(0, 4000)) +
            xlab("Actual Pedestrian Count") +
-           ylab("Predicted Pedestrian Count")
+           ylab("Predicted Pedestrian Count /n by simple imputation method")
 p2 <- ggplot(data = NULL, aes(x = original_df %>% 
              filter(Date_Time < "2017-01-01") %>%
              .[, "Southern Cross Station"],
@@ -634,7 +634,7 @@ p2 <- ggplot(data = NULL, aes(x = original_df %>%
            scale_x_continuous(limits = c(0, 4000)) +
            scale_y_continuous(limits = c(0, 4000)) +
            xlab("Actual Pedestrian Count") +
-           ylab("Predicted Pedestrian Count")
+           ylab("Predicted Pedestrian Count /n by improved imputation method")
 grid.arrange(p1, p2, nrow = 1)
 ```
 
@@ -662,8 +662,7 @@ p1 <- ggplot(data = NULL, aes(x = ori_2[-(is.na(ori_2$`Australia on Collins`)), 
            scale_x_continuous(limits = c(0, 4000)) +
            scale_y_continuous(limits = c(0, 4000)) +
            xlab("Actual Pedestrian Count") +
-           ylab("Predicted Pedestrian Count") +
-           ggtitle("Simple GLM Model: Actual v. Predicted \n at Australia on Collins")
+           ylab("Predicted Pedestrian Count \n by simple imputation method")
 p2 <- ggplot(data = NULL, aes(x = ori_2[-(is.na(ori_2$`Australia on Collins`)), ] %>% 
              filter(Date_Time < "2017-01-01") %>%
              .[, "Australia on Collins"])) +
@@ -681,8 +680,7 @@ p2 <- ggplot(data = NULL, aes(x = ori_2[-(is.na(ori_2$`Australia on Collins`)), 
            scale_x_continuous(limits = c(0, 4000)) +
            scale_y_continuous(limits = c(0, 4000)) +
            xlab("Actual Pedestrian Count") +
-           ylab("Predicted Pedestrian Count") +
-           ggtitle("Improved GLM Model: Actual v. Predicted \n at Australia on Collins")
+           ylab("Predicted Pedestrian Count /n by improved imputation method")
 ```
 
 ```{r, fig.cap = paste("A plot of the in-sample Actual vs Predicted pedestrian counts at Australia on Collins (sensor location with large proportion of missing values) for the simple GLM model and the improved GLM model. The dashed line is $x=y$, representing a reference for perfect fit, while solid line is the linear fit of the points.")}
