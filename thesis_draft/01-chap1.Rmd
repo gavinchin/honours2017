@@ -220,9 +220,9 @@ While this simple model works well with a small proportion of missing values, a 
 
 ### Improved imputation algorithm using small-large split approach
 
-The proposed alternative approach to imputing the missing values in the data focuses on improving the models used at locations with a large proportion of missing values. A potential threshold value which could be used to class a sensor as having a "large" proportion of missing values vs a "small" proportion of missing values is 10%. At locations with a "small" proportion of missings, we can continue to use a GLM quasipossion regression with only time and date based variables as predictors. At the locations with a large proportion of missing values, neighbouring sensor counts are used for prediction. 
+The proposed alternative approach to imputing the missing values in the data focuses on improving the models used at locations with a large proportion of missing values. A potential threshold value which could be used to class a sensor as having a "large" proportion of missing values vs a "small" proportion of missing values is 10%. At locations with a "small" proportion of missings, a GLM quasipossion regression with only time and date based variables as predictors is still an appropriate model to use. At the locations with a large proportion of missing values, however, neighbouring sensor counts are used for prediction. 
 
-The first issue which needs to be addressed is the potential of values which are actually missing due to sensor failure or malfunction having a zero count. This issue will cause bias in the estimates, as well as affect the classification of a sensor. Of course, we cannot simply classify all zero counts as `NA`, as true zero values are possible. 
+The first issue which needs to be addressed is the potential of values which are actually missing due to sensor failure or malfunction having a zero count. This issue will cause bias in the estimates, as well as affect the classification of a sensor. Of course, it is not valid to simply classify all zero counts as `NA`, as true zero values are possible. 
 
 ```{r}
 n_obs <- nrow(dfa)
@@ -251,9 +251,9 @@ pander(summary(sequences[sequences > 1]))
 ```
 Table: Summary statistics of the sequence lengths of repeated values
 
-Instead, a simple check we can implement is to look for long sequences of zero counts. For example, we may want to classify any sequence of `Hourly_Counts = 0` running for longer than 24 hours as being considered `NA`. From the summary of lengths of repeated values (which are repeated at least once), we see that the distribution of the lengths are very positively skewed with a mean length of `r round(mean(sequences[sequences > 1]), 2)` hours of missing data. Classifying any sequence of repeated values, typically 0, which has a length greater than 6 as `NA` should allow true zero counts to avoid being misclassified as `NA`. We select the length of 6 hours as it would be unreasonable to assume any sensor location to have the exact same number of pedestrian counts over such a long period. 
+Instead, a simple check which is implemented is to look for long sequences of zero counts. In this case, any sequence of `Hourly_Counts = 0` running for longer than 6 hours can be considered `NA`. From the summary of lengths of repeated values (which are repeated at least once), it is seen that the distribution of the lengths are very positively skewed with a mean length of `r round(mean(sequences[sequences > 1]), 2)` hours of missing data. Classifying any sequence of repeated values, typically 0, which has a length greater than 6 as `NA` will allow true zero counts to avoid being misclassified as `NA`. The length of 6 hours is selected as the limit as it would be unreasonable to assume any sensor location to have the exact same number of pedestrian counts over such a long period. 
 
-After we have replaced questionable zero values with the value `NA`, we can calculate the proportion of missing values for each sensor location. From these calculated proportion, we can classify sensors as either having a "large" or "small" proportion of missing values, where large is defined as $\mathtt{NAprop}_{sensor} > \mathtt{threshold}$ and `threshold = 0.1`.  
+After replacement of questionable zero values with the value `NA`, only then can the calculation of the proportion of missing values for each sensor location be performed. From these calculated proportion, classification of sensors as either having a "large" or "small" proportion of missing values is performed, where large is defined as $\mathtt{NAprop}_{sensor} > \mathtt{threshold}$ and `threshold = 0.1`.  
 
 ```{r na_prop_compute}
 na_prop <- numeric()
@@ -295,9 +295,9 @@ p2 <- ggplot() + geom_histogram(aes(x = na_prop_pre*100), bins = 12) +
 grid.arrange(p2, p1, nrow = 1)
 ```
 
-Because the models for the sensors with a large proportion of missing values rely on having neighbouring sensors having complete cases (no missing values), we want to impute these values first. This will then allow us to have as much information to be available for the models which use neighbouring sensors to to train on.
+Because the models for the sensors with a large proportion of missing values rely on having neighbouring sensors having complete cases (no missing values), it is necessary  to impute these values (counts at sensors with small proportion of missing values) first. This will ensure as much information is available for the models which use neighbouring sensors to to train on.
 
-For sensors with a small proportion of missing values, we use a GLM quasipoisson model. To improve on the previous model used, we use the model:
+For sensors with a small proportion of missing values, a GLM quasipoisson model is estimated. To improve on the previous model used in the simple method, the model used is:
 $$E \left[\text{HourlyCounts} \vert  \text{Sensor}, \text{Month}, \text{DayType}, \text{Time} \right] = \exp (\mu_{\text{Sensor}, \text{Month}, \text{DayType}, \text{Time}}) $$
 
 $$\text{where } \quad \mu_{\text{Sensor}, \text{Month}, \text{DayType}, \text{Time}} \sim \text{Month} + \text{Time}\times \text{DayType} \tag{2}$$
@@ -336,9 +336,9 @@ for(i in small_miss_sensors){
 ```
 
 
-Instead of `HDay`, we use `DayType` which classifies Tuesday, Wednesday and Thursday as a single factor level, Midweek. We do this as the daily patterns on these weekdays are similar. This reduces the number of parameters to estimate by 46. A result of this is we also have more robust estimates for the midweek days, being less sensitive to outliers. Because this model will be estimated for sensor locations with few missing values,  we have enough data to add in month as an additive effect. This will help capture the annual seasonality.  
+Instead of `HDay`, `DayType` is used which classifies Tuesday, Wednesday and Thursday as a single factor level, Midweek. This can be interpreted as the type of day. This can be done as the daily patterns on the Mideweek weekdays are similar to each other. The intuition for the use of this variable is for the reduction in the number of parameters to estimate ($23 \times 2 = 46$ less parameters). Another consequence of this is more robust estimates for the midweek days, being less sensitive to outliers on a particular day. Because this model will be estimated for sensor locations with few missing values,  enough data is available to add in month as an additive effect tol help capture the annual seasonality. This is not possible at locations with a large proportion of missing values, particularly at newer installations where less than 12 months of data is available in the training period specified.  
 
-Using these estimated models, we impute the missing values to produce complete data at all these sensor locations. For the locations with high proportions of missing values can be predicted using the now complete data from all the locations which had a small proportion of missing values. Using a threshold of 10%, this gives us `r length(small_miss_sensors)` sensor locations to use.  
+Using these estimated models, imputation of the missing values to produce complete data is performed at all these sensor locations. For the locations with high proportions of missing values can be predicted using the now complete data from all the locations which had a small proportion of missing values. Using a threshold of 10%, there are `r length(small_miss_sensors)` sensor locations to use as potential candidates to be used as neighbouring sensors for prediction.  
 
 ```{r, fig.width=4, fig.height=4, fig.align='center', fig.cap = paste("Map showing the algorithm selecting Flinders St Station Underpass and Sandridge Bridge as neighbours by geographical distance to be used to predict the pedestrian counts at Southbank. The algorithm will not choose sensors with large proportions of missing values to be used as neighbours for prediction.")}
 ped_loc <- read_csv("../data/Pedestrian_sensor_locations.csv")
@@ -408,7 +408,8 @@ ggmap(melb3) + geom_line(aes(x = lon, y = lat),
 ```
 
 
-For each of the sensor locations with high proportions of missings, we need to decide which sensor to use for prediction. A simple method of finding a geographical closest neighbour is to take the haversine/great-circle distance between the sensor to be imputed and all the possible candidates.
+For each of the sensor locations with high proportions of missings, the algorithm needs to decide which sensor to use for prediction. A simple method which is applied for finding the geographically closest neighbours is to take the haversine/great-circle distances between the sensor to be imputed and all the possible candidates.
+
 ```{r, message=F}
 # Calculates the geodesic distance between two points specified by radian latitude/longitude using the
 # Spherical Law of Cosines (slc)
@@ -468,7 +469,7 @@ for (i in large_miss_sensors){
 
 ```
 
-Using the two geographically closest sensors with complete cases, we use another GLM specified as:
+Using the two geographically closest sensors (with complete cases) as defined by the haversine distance, the GLM specified for estimation is:
 $$E \left[ \text{HourlyCounts}_{\text{sensor}} \vert \text{Time}, \text{HourlyCounts}_{\text{neighbours}} \right] = \mu_{\text{Time}, \text{HourlyCounts}_{\text{neighbours}}}$$
 $$\text{where } \quad  \mu_{\text{Time}, \text{HourlyCounts}_{\text{neighbours}}} \sim \text{Time} \times \text{HourlyCounts}_{\text{neighbour 1}}^{SC} + \text{Time} \times \text{HourlyCounts}_{\text{neighbour 2}}^{SC}$$
 
