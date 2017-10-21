@@ -272,7 +272,7 @@ large_miss_sensors <- names(na_prop[na_prop > threshold])
 small_miss_sensors <- setdiff(names(na_prop), large_miss_sensors)
 ```
 
-```{r naprop_hist, fig.width=9, fig.height=4, fig.cap="Comparison of distribution of proportion of missing values at each sensor is significantly different after correcting for false zero counts in the data"}
+```{r naprop_hist, fig.width=9, fig.height=4, fig.cap="Histograms of the proportions of missing values at each sensor during 2014 - 2016 when calculated before and after correction for false zero counts. The distributions of proportion of missing values at each sensor is significantly different after correcting for false zero counts in the data. This emphasises the necessity to correct for false zero counts as it will affect "}
 theme_g <- theme_minimal() +
            theme(plot.title = element_text(hjust = 0.5,
                                            size = 10))
@@ -283,8 +283,7 @@ p1 <- ggplot() + geom_histogram(aes(x = na_prop*100), bins = 12) +
                      colour = 'red') +
           geom_label(aes(label = "10% Threshold", x = 16, y = 25),
                     colour = "white", fill = 'black', alpha = 0.4) +
-          scale_y_continuous(limits = c(0,35)) +
-          ggtitle("Histogram of Proportions of Missing Values \n during 2014 - 2016")
+          scale_y_continuous(limits = c(0,35))
 p2 <- ggplot() + geom_histogram(aes(x = na_prop_pre*100), bins = 12) +
           xlab("Percentage of Missing Values (%)") +
           ylab("Number of Sensors") + theme_g +
@@ -292,8 +291,7 @@ p2 <- ggplot() + geom_histogram(aes(x = na_prop_pre*100), bins = 12) +
                      colour = 'red') +
           geom_label(aes(label = "10% Threshold", x = 16, y = 25),
                     colour = "white", fill = 'black', alpha = 0.4) +
-          scale_y_continuous(limits = c(0,35)) +
-          ggtitle("Histogram of Proportions of Missing Values \n during 2014 - 2016 prior to false zero counts fix")
+          scale_y_continuous(limits = c(0,35))
 grid.arrange(p2, p1, nrow = 1)
 ```
 
@@ -1187,7 +1185,7 @@ ggplot(dfa2 %>%
 
 A plot of the daily pedestrian counts series at Melbourne Central by type of day and month show that time and date variables as deterministic predictors adequately explains most variation in the pedestrian counts. It can be seen that month has an additive effect as the pattern of the hourly counts for a given date are not affected by month. The six different factor levels that `DayType`, the type of day, is seen to be a sufficiently explain six different patterns. The type of day, Midweek, shows evidence that no additional information is gained from identifying the day to be Tuesday, Wednesday or Thursday.
 
-```{r, fig.height=4, fig.width=8, fig.cap=paste("Plot of the estimated coefficients of the GLM at each sensor for each variable. Variables (x-axis) is ordered by the scagnostic measure, Outlying.")}
+```{r, fig.height=4, fig.width=8, fig.cap=paste("Plot of the estimated coefficients of the GLM for the interaction term $\text{DayType} \times \text{Time}$ for each hour at each sensor. Variables (x-axis) is ordered by the scagnostic measure, Outlying. "), include=FALSE, eval = FALSE}
 dfcoeff <- data.frame(terms = factor(), coeff = numeric(), sensor = factor())
 for(i in names(pred_model)){
   terms <- names(coef(pred_model[[i]]))
@@ -1200,17 +1198,19 @@ dfcoeff <- dfcoeff %>% spread(terms, coeff)
 
 library(GGally)
 library(scagnostics)
-ggparcoord(dfcoeff[, -1],
-           order = "Outlying", alphaLines = 0.3)
+ggparcoord(dfcoeff[, 51:74], scale = "std", 
+           order = "Clumpy", alphaLines = 0.3) + theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, vjust = 0.5, size = 6)) +
+  labs(x = "Parameter")
 ```
 
 
 
-When we estimate the GLM at each sensor location with R, we only need to save the elements in the model object which are required in order to retain the functionality of R's `predict.glm()` function. Saving the entire GLM object as given by the base R `glm()` function is highly inefficient when working with large datasets. This is due to the model object providing redundancies. In particular, elements which are unnecessarily saved for our purposes: the training data, the predictors in a model matrix format (the matrix of $\mathbf{X}$ after being formatted to be used for regression, such as recoding categorical variables into dummy variables), the response variable as another vector ($\mathbf{Y}$), the fitted values of the model after estimation, the residuals of the estimates, as well as the estimated effects.  
+When estimating the GLM at each sensor location with R, only the necessary elements in the model object which are required in order to retain the functionality of R's `predict.glm()` function are saved to file. Saving the entire GLM object as given by the base R `glm()` function is highly inefficient when working with large datasets. This is due to the model object providing redundancies. In particular, elements which are unnecessarily saved for the purposes of the predictive model: the training data, the predictors in a model matrix format (the matrix of $\mathbf{X}$ after being formatted to be used for regression, such as recoding categorical variables into dummy variables), the response variable as another vector ($\mathbf{Y}$), the fitted values of the model after estimation, the residuals of the estimates, as well as the estimated effects.  
 
 The result of removing all the unnecessary redundant data elements in the GLM object is a storage size reduction from `r mall_model_2 %>% object.size() %>% format(units = "auto")` to `r mall_model_2 %>% stripGlmLR() %>% object.size() %>% format(units = "auto")`. This is only `r round((mall_model_2 %>% stripGlmLR() %>% object.size() %>% as.numeric/ mall_model_2 %>% object.size() %>% as.numeric)*100, 2)`% of the size of the original GLM object. With `r length(unique(ped_data$Sensor))` sensors (and models), this represents a reduction in model object size from `r format((mall_model_2 %>% object.size()) * length(unique(ped_data$Sensor)), units = "auto")` to `r format((mall_model_2 %>% stripGlmLR() %>% object.size()) * length(unique(ped_data$Sensor)), units = "auto")`.  
 
-The estimated model parameters are saved so that they can be used for on-the-fly predictions by end users without needing to estimate the model themselves. Using the estimated model parameters, we can write a new function to facilitate the predictions in an easy to use format.
+The estimated model parameters are saved so that they can be used for on-the-fly predictions by end users without needing to estimate the model themselves. Using the estimated model parameters, a new function is written to facilitate the predictions in an easy to use format.
 
 
 ```{r, echo = TRUE, eval = FALSE}
