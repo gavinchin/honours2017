@@ -90,6 +90,8 @@ dfa <- filter(dfa, Date_Time < "2017-01-01")
 ori_2 <- filter(original_df, Date_Time < "2017-01-01")
 ori_ts <- filter(original_df, Date_Time > "2016-12-31")
 ori_ts2 <- ori_ts
+
+ped_loc <- read.csv("../data/Pedestrian_sensor_locations.csv")
 ```
 # Introduction  
 
@@ -120,9 +122,41 @@ The data source used in this paper is accessed with the `rwalkr::walk_melb()` fu
 
 The period of data which is being used for analysis is between 01/01/2014 to 22/10/2017 (date of this paper). This is due to the poor quality of the dataset pre-2014 with many missing values with few sensors being installed during at the start of pedestrian counts recording (in 2009).
 
+```{r, fig.cap=paste("Plot of hourly counts for Flagstaff Station, Southbank and State Library sensors during the training period of 2014-2016. It is observed that Southbank has a period without any data (pre installation), while Flagstaff Station appears to have complete data. State Library appears complete, although the first half of 2015 shows suspeciously low hourly counts for a long period. ")}
+pd <- ggplot(dfa %>% filter(Date_Time < "2017-01-01 00:00:00",
+                            Date_Time > "2013-12-31 00:00:00")) +
+        scale_y_continuous(limits = c(0, 7000)) +
+        xlab(NULL) +
+        theme_minimal()
+
+p1 <-  pd + geom_line(aes(x = Date_Time, y = `Flagstaff Station`))
+p2 <-  pd + geom_line(aes(x = Date_Time, y = `Southbank`))
+p3 <-  pd + geom_line(aes(x = Date_Time, y = `State Library`)) +
+            xlab("Time and Date")
+
+grid.arrange(p2, p1, p3, nrow = 3, ncol = 1)
+```
+
+
+
 Even with a truncated period for the data, no sensor location has complete data for the period between between 01/01/2014 and 31/12/2016 (the training period to be used for predictive models in the paper). As a result, imputation of the data is required for meaningful analysis of pedestrian behaviour.  
 
 The sensor data is collected by sensors located throughout the Melbourne CBD under awnings and street poles. The sensors record the number of people passing through a counting zone each hour, sending this data to a server to be saved. The date of installation varies, as new sensors are constantly being installed over time. 
+
+```{r, fig.cap = paste("Map of all the pedestrian count sensors currently installed around the Melbourne CBD. The proximity between sensors is very close at some locations. This indicates potential for imputation using nearby sensor counts as predictors.")}
+melb <- get_map(location=c(mean(range(ped_loc$Longitude)),
+                               mean(range(ped_loc$Latitude))),
+                                zoom=14)
+ggmap(melb) + geom_point(aes(x = Longitude, y = Latitude),
+                         data = ped_loc, colour = "red",
+                         size = 4, alpha = 0.7, shape = 17) +
+              xlab(NULL) + ylab(NULL) +
+              theme(plot.title = element_text(hjust = 0.5),
+                    plot.caption = element_text(hjust = 0.5),
+                    axis.text.x = element_blank(),
+                    axis.text.y = element_blank(),
+                    axis.ticks = element_blank())
+```
 
 
 ### Literature Review
@@ -131,9 +165,9 @@ Reviewing current research on imputation of missing values in traffic data, a pa
 
 Replacement with "good" historical values, or using historical average values was found to have resulted in very poor fit with high MARE/MARD (mean absolute relative error/difference). Roh et al. found that using a moving average worked the best out of all the heuristic methods used. The largest problem with heuristic methods, however, was the inherent inability to reflect sudden fluctuations/shocks during abnormal periods. With such a large proportion of missing values, pattern matching methods were investigated. This involves comparing the _study curve_, the pattern at the counter which is to be imputed, to candidate patterns (patterns at other locations).  
 
-For the purposes of that paper, it was found to be inappropriate with the data being analysed.  However, unlike the highway traffic data, where patterns were compared to traffic volumes in different jurisdictions (large geographical distance), the geographic distances between the sensor locations in the Melbourne CBD pedestrian data are much smaller. Another major difference is the randomness of the missing values, where the periods of missing data run longer in the Melbourne CBD pedestrian data compared to that in the Alberta traffic data. Roh et al. proposed using non-parametric estimation methods with k-Nearest Neighbours (kNN) for imputation, although this is unlikely to work well with the lack of data at certain sensor locations in the Melbourne CBD Pedestrian data. Similarly, most other applications of imputation methods on traffic data used non-parametric regressions for traffic flow forecasting (Zhong, J., Ling, S. 2015).
+For the purposes of that paper, it was found to be inappropriate with the data being analysed.  However, unlike the highway traffic data, where patterns were compared to traffic volumes in different jurisdictions (large geographical distance), the geographic distances between the sensor locations in the Melbourne CBD pedestrian data are much smaller. Another major difference is the randomness of the missing values, where the periods of missing data run longer in the Melbourne CBD pedestrian data compared to that in the Alberta traffic data. Roh et al. proposed using non-parametric estimation methods with k-Nearest Neighbours (kNN) for imputation, although this is unlikely to work well with the lack of data at certain sensor locations in the Melbourne CBD Pedestrian data. This is because kNN regression works best when there is a lot of historical data. The lack of historical data at newer sensor installations, where less than 12 months of training data is available, makes kNN unfeasible. Similarly, most other applications of imputation methods on traffic data used non-parametric regressions for traffic flow forecasting (Zhong, J., Ling, S. 2015) involving kNN.
 
-Another important part of analysis which needed to be conducted when performing data imputation is assessment of robustness (Zhong, M. et al. 2005). Zhong et al. found that modeles using additional observations as input and more sophisticated prediction techniques were able to make better imputations on a consistent basis.
+Another important part of analysis which needed to be conducted when performing data imputation is assessment of robustness (Zhong, M. et al. 2005). Zhong et al. found that models using additional observations as input and more sophisticated prediction techniques were able to make better imputations on a consistent basis. 
 
 
 
@@ -260,7 +294,7 @@ large_miss_sensors <- names(na_prop[na_prop > threshold])
 small_miss_sensors <- setdiff(names(na_prop), large_miss_sensors)
 ```
 
-```{r naprop_hist, fig.width=6, fig.height=3, fig.cap=paste("Histograms of the proportions of missing values at each sensor during 2014 - 2016 when calculated before and after correction for false zero counts. The distributions of proportion of missing values at each sensor is significantly different after correcting for false zero counts in the data. This emphasises the necessity to correct for false zero counts as it will cause biased estimates.")}
+```{r, fig.width=6, fig.height=3, fig.cap=paste("Histograms of the proportions of missing values at each sensor during 2014 - 2016 when calculated before and after correction for false zero counts. The distributions of proportion of missing values at each sensor is significantly different after correcting for false zero counts in the data. This emphasises the necessity to correct for false zero counts as it will cause biased estimates.")}
 theme_g <- theme_minimal() +
            theme(plot.title = element_text(hjust = 0.5,
                                            size = 10))
@@ -324,7 +358,7 @@ for(i in small_miss_sensors){
 ```
 
 
-Instead of `HDay`, `DayType` is used which classifies Tuesday, Wednesday and Thursday as a single factor level, Midweek. This can be interpreted as the type of day. This can be done as the daily patterns on the Mideweek weekdays are similar to each other. The intuition for the use of this variable is for the reduction in the number of parameters to estimate ($23 \times 2 = 46$ less parameters). Another consequence of this is more robust estimates for the midweek days, being less sensitive to outliers on a particular day. Because this model will be estimated for sensor locations with few missing values,  enough data is available to add in month as an additive effect tol help capture the annual seasonality. This is not possible at locations with a large proportion of missing values, particularly at newer installations where less than 12 months of data is available in the training period specified.  
+Instead of `HDay`, `DayType` is used which classifies Tuesday, Wednesday and Thursday as a single factor level, Midweek. This can be interpreted as the type of day. This can be done as the daily patterns on the Midweek weekdays are similar to each other. The intuition for the use of this variable is for the reduction in the number of parameters to estimate ($23 \times 2 = 46$ less parameters). Another consequence of this is more robust estimates for the midweek days, being less sensitive to outliers on a particular day. Because this model will be estimated for sensor locations with few missing values,  enough data is available to add in month as an additive effect to help capture the annual seasonality. This is not possible at locations with a large proportion of missing values, particularly at newer installations where less than 12 months of data is available in the training period specified.  
 
 Using these estimated models, imputation of the missing values to produce complete data is performed at all these sensor locations. For the locations with high proportions of missing values can be predicted using the now complete data from all the locations which had a small proportion of missing values. Using a threshold of 10%, there are `r length(small_miss_sensors)` sensor locations to use as potential candidates to be used as neighbouring sensors for prediction.  
 
@@ -463,7 +497,7 @@ $$\text{where } \quad  \mu_{\text{Time}, \text{HourlyCounts}_{\text{neighbours}}
 
 The model uses and interaction term between the standardised/scaled counts at the neighbouring sensors and the time of the day (hour factor).
 
-The amount of people passing through the neighbouring sensors will be expected to be a strong predictor of the pedestrian counts as they are likely to also pass through. Using geographical neighbours, it is possible capture rare events effectively as the predictors are also random variables. Any large shocks to the counts at the neighbouring sensors will have an effect on the predicted counts.
+The amount of people passing through the neighbouring sensors will be expected to be a strong predictor of the pedestrian counts as they are likely to also pass through. Using geographical neighbours, it is possible capture rare events effectively as the predictors are also random variables. Any large shocks to the counts at the neighbouring sensors will have an effect on the predicted counts. This method is a form of pattern matching, where the sensor counts being imputed can be considered the study curve, and the neighbouring sensor counts are candidates for matching.
 
 ```{r, echo = FALSE, message=FALSE, warning=F, include=FALSE}
 i <- "Southbank"
@@ -552,7 +586,8 @@ A for loop is used to estimate the GLM specified:
 glm(dfa[, i] ~ Month + DayType*Time, data = dfa,
     family = quasipoisson())
 ```
-where `dfa` is the object name given to the data frame containing the training data after the false zero-count correction, and `i` is the $i^{th{}}$ sensor in the list of sensors with a small proportion of missing values. These models are stored in a list, forming a list of models. An alternative approach to using a for loop in R is splitting the data into separate data frames for each sensor location (forming a list of data frames) and applying the `glm()` function on each data frame in the list using the function `purrr::map()`. However, when this was attempted, performance issues were encountered due to the large size of the estimated model objects in R. This was not an issue when a for loop was used. Additional code for removing unnecessary elements of the GLM model object before storing to the list of models, reduucing the memory usage.  
+where `dfa` is the object name given to the data frame containing the training data after the false zero-count correction, and `i` is the $i^{th{}}$ sensor in the list of sensors with a small proportion of missing values. These models are stored in a list, forming a list of models. An alternative approach to using a for loop in R is splitting the data into separate data frames for each sensor location (forming a list of data frames) and applying the `glm()` function on each data frame in the list using the function `purrr::map()`. However, when this was attempted, performance issues were encountered due to the large size of the estimated model objects in R. This was not an issue when a for loop was used. Additional code for removing unnecessary elements of the GLM model object before storing to the list of models, reducing the memory usage. Significant improvements in computing time is made with the use of parallel computing. Parallel computing is implemented with the use of `foreach()` and `doSNOW` rather than using the base R `for()` function. IT was found that estimation time was reduced by 50% when using a cluster size of two parallel nodes. Additional nodes (more than two) did not result in a significantly reduced computing time, so only two were used.
+
 
 ### Imputation at sensor locations with a small proportion of missing values
 
@@ -691,7 +726,7 @@ $$MARE_{sensor} =  \frac{1}{T^2} \frac{\sum_{t=1}^T \left| \widehat{\text{Hourly
 
 Absolute errors are used instead of squared errors as penalising larger errors relative to smaller errors was not desirable. A relative measure is used so that comparisons can be made between sensors.
 
-A seperate MARE for predictions in-sample (in the training set) and the predictions out of sample (test set of 2017 data) is calculated. This is to help identify overfitting of the training data. 
+A separate MARE for predictions in-sample (in the training set) and the predictions out of sample (test set of 2017 data) is calculated. This is to help identify overfitting of the training data. 
 
 ```{r}
 MARE_base_glm_tr <- numeric()
@@ -763,7 +798,7 @@ ggplot(original_df %>%  filter(Date_Time < "2014-07-06 00:00:00",
   theme(plot.title = element_text(hjust = 0.5)) 
 ```
 
-More importantly, the performance of the model's predictions of the out of sample observations (2017 data) is evavaluated as cross validation. Due to potential false zero counts in the test data sourced from `rwalkr::walk_melb()`, correction of false zero-counts are required to be able to properly evaluate the goodness of fit of out-of-sample observations. The method used for this is identical to that used on the training set in the algorithm, with replacement of repeated value sequences of length 6 hours or longer with the value `NA`.
+More importantly, the performance of the model's predictions of the out of sample observations (2017 data) is evaluated as cross validation. Due to potential false zero counts in the test data sourced from `rwalkr::walk_melb()`, correction of false zero-counts are required to be able to properly evaluate the goodness of fit of out-of-sample observations. The method used for this is identical to that used on the training set in the algorithm, with replacement of repeated value sequences of length 6 hours or longer with the value `NA`.
 
 ```{r ts_fix0}
 for(i in unique(ped_data$Sensor)){
@@ -950,7 +985,7 @@ grid.arrange(p1, p2, p3, nrow = 1)
 
 Spencer St-Collins St (North)/(South) and Flinders St-Swanston St (West) was omitted from the the plots above as the out-of-sample MARE is extremely high at `r round(MARE_ts["Spencer St-Collins St (North)"]*100, 2)`%, `r round(MARE_ts["Spencer St-Collins St (South)"]*100, 2)`% and `r round(MARE_ts["Flinders St-Swanston St (West)"]*100, 2)`% respectively. 
 
-As these sensor locations were both classified as locations with a large proportion of missing values, it would appear that the relationship between these locations and their neighbouring sensors has changed. This is because the in-saple MARE at these sensor locations were quite acceptable at `r round(MARE_tr["Spencer St-Collins St (North)"]*100, 2)`%, `r round(MARE_tr["Spencer St-Collins St (South)"]*100, 2)`% and `r round(MARE_tr["Flinders St-Swanston St (West)"]*100, 2)`% respectively. 
+As these sensor locations were both classified as locations with a large proportion of missing values, it would appear that the relationship between these locations and their neighbouring sensors has changed. This is because the in-sample MARE at these sensor locations were quite acceptable at `r round(MARE_tr["Spencer St-Collins St (North)"]*100, 2)`%, `r round(MARE_tr["Spencer St-Collins St (South)"]*100, 2)`% and `r round(MARE_tr["Flinders St-Swanston St (West)"]*100, 2)`% respectively. 
 
 ```{r, fig.width = 6, fig.height = 3, fig.cap="Average pedestrian counts by time of day and type of day (DayType) at Spencer St-Collins St (South) for training data (dark line) and test data (light line). The pedestrian counts characteristics are seen to be different between the in-sample observations (2014-2016) and the out-of-sample observations (2017). This explains the much larger MARE in the out-of-sample predictions, as the model cannot account for a change in pattern over time."}
 ggplot() + geom_smooth(aes(x = as.integer(Time),
@@ -965,9 +1000,9 @@ ggplot() + geom_smooth(aes(x = as.integer(Time),
            facet_wrap(~ DayType)
 ```
 
-The plot of the average counts by time of day and type of day and data set shows that this location saw an increase in counts on weekdays which did not occur at the neghbouring sensors. It was also seen that the pattern is slightly different during weekdays, with a higher afternoon/evening peak. These types of change in pedestrian traffic behaviour is hard to capture in our imputation model, especially when its neighbours did not have a similar change. While it is possible to add a variable for year to allow for year to year growth, the short period of training data doesn't make this appropriate at this stage.  
+The plot of the average counts by time of day and type of day and data set shows that this location saw an increase in counts on weekdays which did not occur at the neighbouring sensors. It was also seen that the pattern is slightly different during weekdays, with a higher afternoon/evening peak. These types of change in pedestrian traffic behaviour is hard to capture in our imputation model, especially when its neighbours did not have a similar change. While it is possible to add a variable for year to allow for year to year growth, the short period of training data doesn't make this appropriate at this stage.  
 
-Another method to perform cross-validation of the robustness of the model is to remove data at a sensor, and evaulate the predictions made. This will allow us to evaluate the imputation model's performance of out of sample but within training period observations, which is the primary concern with them imputation process.  
+Another method to perform cross-validation of the robustness of the model is to remove data at a sensor, and evaluate the predictions made. This will allow us to evaluate the imputation model's performance of out of sample but within training period observations, which is the primary concern with them imputation process.  
 The sensor selected with a small proportion of missing values, Bourke Street Mall (South), has `r round((1 - na_prop["Bourke Street Mall (South)"])*100, 3)`% of data available. As observed in the data, missing data is present in different ways: random, short periods of missing data (no more that 6 hours) or long periods of missing data (multiple months). Simulation of both types of missingness at this sensor location is performed.  
 
 First, data is randomly removed such that 20% of the training data is missing, then the imputation model is estimated. Using the estimated model, the MARE within the training data is calculated (in-sample MARE).

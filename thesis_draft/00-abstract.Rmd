@@ -4,8 +4,7 @@ knit: "bookdown::render_book"
 
 # Abstract {-}
 
-The City of Melbourne provides an open data platform to access council datasets, with the intention "to increase transparency, improve public services and support new economic and social initiatives". This paper will focus primarily on the pedestrian data collected from pedestrian sensors placed throughout Melbourne's CBD. In particular, we want to be able to model the pedestrian traffic at different locations in the CBD, and forecast the traffic. In addition, we aim to have an interactive, dynamic data visualisation of the model to help us to understand how Melbourne operates.
-
+The City of Melbourne provides access pedestrian data collected from pedestrian sensors placed throughout Melbourne's CBD. Through data analysis and exploration, the aim is analyse the pedestrian behaviour at different locations in the CBD in order to predict pedestrian counts. Issues in the dataset, with missing values and false zero counts, are investigated and solutions proposed. An improved imputation method is proposed, using different models based on the proportion of missing values. For sensor locations with a small proportion of missing values used generalised linear models using only time and date based variables as predictors, while sensors with a large proportion of missings used neighbouring sensor counts as predictors. Using this imputed data, predictive models can be trained more effectively, producing better estimates. A predictive model for on-the-fly predictions was wrapped into a function to facilitate point estimates in an easy and tidy format.
 
 <!-- 
 The following line is required to re-set page numbering after preliminary material. Do not remove

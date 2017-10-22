@@ -87,7 +87,7 @@ ped_predict_day <- function(pred_date = today(tzone = "Australia/Melbourne"),is_
 ```
 
 
-Using a GLM predicts well compared to estimating with other models such as AR($p$) or other time series models when considering the tradeoff between model complexity and prediction accuracy. Due to multiple seasonalities, AR($p$) models would need to be considered on a hour of the week basis at each sensor location. Prediction with time series models would also require of historical data. For the objective of this predictive model, the additional imputs required by end users to predict pedestrian counts when making out of sample predictions is not desirable. 
+Using a GLM predicts well compared to estimating with other models such as AR($p$) or other time series models when considering the trade off between model complexity and prediction accuracy. Due to multiple seasonalities, AR($p$) models would need to be considered on a hour of the week basis at each sensor location. Prediction with time series models would also require of historical data. For the objective of this predictive model, the additional inputs required by end users to predict pedestrian counts when making out of sample predictions is not desirable. 
 
 ```{r, fig.width=6, fig.height=4, fig.cap = paste("Plot of daily pedestrian counts series at Melbourne Central by DayType and Month. Month of the year is mapped to colour to help identify annual seasonal patterns, where month has an additive effect on the pedestrian counts. At Melbourne Central, different months can be seen to have different mean counts for a given type of day and hour of the day.")}
 ggplot(dfa2 %>%
@@ -148,6 +148,8 @@ An imputation method for the pedestrian data was developed with a theory of sens
 
 Implementation of the imputation algorithm was made such that it is efficient, reproducible and general enough to allow for changes to model parameterisation and new data with from new sensor installations.  
 
-Using the imputed data, a predictive model to be used for point estimates for a given time was built and packaged in a function in R, `ped_predict()`, to facilitate predictions in an easy and tidy format. The model has been saved so that predictions can be made without the end user needing to estimate the model prior to prediction.
+Using the imputed data, a predictive model to be used for point estimates for a given time was built and packaged in a function in R, `ped_predict()`, to facilitate predictions in an easy and tidy format. The model has been saved so that predictions can be made without the end user needing to estimate the model prior to prediction.  
+
+Further research to improve the imputation algorithm can be made, such as more alternative models for different proportions of missing values. Cross validation of different missing proportion threshold values could also improve the prediction accuracy of the imputation models.
 
 \nocite{*}
