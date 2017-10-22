@@ -4,4 +4,11 @@ knit: "bookdown::render_book"
 
 # Acknowledgements {-}
 
-I would like to thank my pet goldfish for \dots
+I would like to thank my supervisor, Professor Dianne Cook, for assisting with my research and offering great advice. I would also like to thank Earo Wang for her support, as well as creating the extremely helpful `rwalkr` package.  
+
+Thank you to Professor Xueyan Zhao for coordinating a great Econometrics Honours course! And lastly, all my fellow Honours Class of 2017 for making the course so enjoyable!
+
+## Software used
+
+R and RStudio were used for all analysis in this paper. The following R packages were used: `tidyverse`, containing the packages: `ggplot2, dplyr, tidyr, readr, purr, tibble`, `lubridate`, `rwalkr`, `knitr`, `plyr`, `foreach`, `doSNOW`, `pander`, `gridExtra`, `ggmap`, `viridis`, `broom`, `bookdown`
+
