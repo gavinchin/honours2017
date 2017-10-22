@@ -97,55 +97,43 @@ The City of Melbourne provides an open data platform to access council datasets,
 
 The main issue which is encountered with traffic data in general is the presence of missing values. For the Melbourne CBD pedestrian data, data is missing as a result of the 
 
-Imputation methods are explored due to the lack of complete data in the pedestrian dataset.
+Imputation methods are explored due to the lack of complete data in the pedestrian dataset. Without imputation on the data, some sensors lack information about pedestrian activity. This makes statistical inference and model estimation difficult to compare between locations. 
 
 
 # Motivation
 Modelling pedestrian activity in the Melbourne CBD will provide insights to the social and consumer behaviour of the people within the city. In particular, prediction of pedestrian traffic will provide information about the way the city operates. Examples of some uses of such information include infrastructure planning, or security planning (which has become quite important in recent times) within the government sector. Private uses of such information include marketing, such as finding optimal locations to launch advertising campaigns, resource management for businesses to improve staffing based on pedestrian traffic, and investment planning to analyse business plan feasibility.
 
-Throughout the data exploration and analysis, issues with respect to missing values in the pedestrian data are explored and solutions to these issues are proposed. These issues have been seen to cause biased estimates when building models for prediction. Efficient methods for solving these issues is also a priority due to the size of the data.
+Throughout the data exploration and analysis, issues with respect to missing values in the pedestrian data are explored and solutions to these issues are proposed. These issues have been seen to cause biased estimates when building models for prediction. Efficient methods for solving these issues is also a priority due to the size of the data. As such, the imputation method used should be computationally feasible. 
 
 # Background
 
 ### The Data: City of Melbourne Pedestrian Data
 
-The dataset being analysed can be obtained from the official City of Melbourne's open data[@com_data]. The pedestrian data is in the form of hourly pedestrian counts for `r length(unique(ped_data$Sensor_ID))` sensor locations. In total, there is `r nrow(ped_data)` observations in the dataset, representing `r nrow(dfa)` hours of data. It is available in `.csv` format, allowing for easy data import into R. We can also access the pedestrian data using the the `rwalkr` package [@_wang_rwalkr]. This package allows R to import the data from `data.melbourne.vic.gov.au` which is updated monthly, or from the data source which is used by `pedestrian.melbourne.vic.gov.au` which is updated daily. 
+The dataset being analysed can be obtained from the official City of Melbourne's online open data platform. The pedestrian data is in the form of hourly pedestrian counts for `r length(unique(ped_data$Sensor_ID))` sensor locations. In total, there is `r nrow(ped_data)` observations in the dataset, representing `r nrow(dfa)` hours of data. It is available in `.csv` format, allowing for easy data import into R. Access ti the pedestrian data using the the `rwalkr` package. This package allows R to import the data from `data.melbourne.vic.gov.au` which is updated monthly, or from the data source which is used by `pedestrian.melbourne.vic.gov.au` which is updated daily. 
 
 ```{r}
 ped_data %>% select(Sensor, Hourly_Counts) %>% split(.$Sensor)  %>%
             map(is.na) %>% map(sum) %>% unlist -> sensor_missvals
 ```
 
+The data source used in this paper is accessed with the `rwalkr::walk_melb()` function, which imports data from `pedestrian.melbourne.vic.gov.au`. This data source was chosen due to missing values being explicit (all possible rows in the data are given, even if data is missing). It is also updated more frequently.
+
 The period of data which is being used for analysis is between 01/01/2014 to 22/10/2017 (date of this paper). This is due to the poor quality of the dataset pre-2014 with many missing values with few sensors being installed during at the start of pedestrian counts recording (in 2009).
 
-Even with a truncated period for the data, no sensor location has complete data for the period between between 01/01/2014 and 31/12/2016 (the training period to be used for predictive models in the paper). As a result, imputation of the data is required for meaningful analysis of pedestrian behaviour.
+Even with a truncated period for the data, no sensor location has complete data for the period between between 01/01/2014 and 31/12/2016 (the training period to be used for predictive models in the paper). As a result, imputation of the data is required for meaningful analysis of pedestrian behaviour.  
+
+The sensor data is collected by sensors located throughout the Melbourne CBD under awnings and street poles. The sensors record the number of people passing through a counting zone each hour, sending this data to a server to be saved. The date of installation varies, as new sensors are constantly being installed over time. 
 
 
 ### Literature Review
-<!-- #### IMPUTATION OF MISSING CLASSIFIED TRAFFIC DATA DURING WINTER SEASON - _Hyuk-Jae Roh, Satish Sharma, Prasanta K. Sahu_   -->
-
-<!-- http://ir.lib.uwo.ca/cgi/viewcontent.cgi?article=1250&context=csce2016   -->
-<!-- - traffic counters with 40% to 60% missing values -->
-<!-- - heuristic methods -->
-<!--   - using "good historical values" or historical average values resulted -->
-<!--     in MARE (mean absolute relative error) reaching up to 80% -->
-<!--   - using moving average values worked better than other heuristic methods -->
-<!--   - all heuristic methods inhenrently cannot reflect sudden fluctuations during abnormal periods -->
-<!-- - pattern matching methods -->
-<!--   - find "candidate" volume pattern to compare to "study curve" and use the candidate which best matches the study curve -->
-<!-- - ARIMA -->
-<!--   - did not work well with multiple seasonalities -->
-<!-- - AI methods -->
-<!--   - genetic algorithms (GAs) and artificial neural networks (ANNs) -->
-
-<!-- Method used in the study was kNN with an interaction using a weather model, which they found to work best with large variations in traffic during winter -->
-<!-- (severe weather conditions affecting traffic volume)   -->
 
 Reviewing current research on imputation of missing values in traffic data, a paper on imputation of missing classified traffic data during winter season (Roh et al., 2016) stated some methods which were found to be poor for imputation. The data used in this research were from traffic counters located on the highway network in Alberta, Canada with between 40% and 60% missing data. 
 
 Replacement with "good" historical values, or using historical average values was found to have resulted in very poor fit with high MARE/MARD (mean absolute relative error/difference). Roh et al. found that using a moving average worked the best out of all the heuristic methods used. The largest problem with heuristic methods, however, was the inherent inability to reflect sudden fluctuations/shocks during abnormal periods. With such a large proportion of missing values, pattern matching methods were investigated. This involves comparing the _study curve_, the pattern at the counter which is to be imputed, to candidate patterns (patterns at other locations).  
 
-For the purposes of that paper, it was found to be inappropriate with the data being analysed.  However, unlike the highway traffic data, where patterns were compared to traffic volumes in different jurisdictions (large geographical distance), the geographic distances between the sensor locations in the Melbourne CBD pedestrian data are much smaller. Another major difference is the randomness of the missing values, where the periods of missing data run longer in the Melbourne CBD pedestrian data compared to that in the Alberta traffic data. Roh et al. proposed using non-parametric estimation methods with k-Nearest Neighbours (kNN) for imputation, although this is unlikely to work well with the lack of data at certain sensor locations in the Melbourne CBD Pedestrian data.
+For the purposes of that paper, it was found to be inappropriate with the data being analysed.  However, unlike the highway traffic data, where patterns were compared to traffic volumes in different jurisdictions (large geographical distance), the geographic distances between the sensor locations in the Melbourne CBD pedestrian data are much smaller. Another major difference is the randomness of the missing values, where the periods of missing data run longer in the Melbourne CBD pedestrian data compared to that in the Alberta traffic data. Roh et al. proposed using non-parametric estimation methods with k-Nearest Neighbours (kNN) for imputation, although this is unlikely to work well with the lack of data at certain sensor locations in the Melbourne CBD Pedestrian data. Similarly, most other applications of imputation methods on traffic data used non-parametric regressions for traffic flow forecasting (Zhong, J., Ling, S. 2015).
+
+Another important part of analysis which needed to be conducted when performing data imputation is assessment of robustness (Zhong, M. et al. 2005). Zhong et al. found that modeles using additional observations as input and more sophisticated prediction techniques were able to make better imputations on a consistent basis.
 
 
 
