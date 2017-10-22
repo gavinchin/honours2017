@@ -646,7 +646,7 @@ Visually, it can be seen that the fitted values are good estimates of the pedest
 
 This provides evidence that the GLM model with only time and date based variables work well when there is only small periods of missing data.  
 
-However, if we try to use this same model specification at sensor locations with large proportions of missing values, the fit is poor. We use the sensor at Australia on Collins, where the proportion of missing values is `r round(na_prop["Australia on Collins"]*100, 2)`%. 
+However, using this same model specification at sensor locations with large proportions of missing values, the fit is poor. We use the sensor at Australia on Collins, where the proportion of missing values is `r round(na_prop["Australia on Collins"]*100, 2)`%. 
 ```{r}
 options(na.action = na.omit)
 p1 <- ggplot(data = NULL, aes(x = ori_2[-(is.na(ori_2$`Australia on Collins`)), ] %>% 
@@ -697,7 +697,7 @@ We can see that the simple model has bias caused by the false zero counts, resul
 
 The criterion we will use to measure goodness of fit is MARE. It is calculated by:
 
-$$MARE_{sensor} =  \frac{1}{T^2} \frac{\sum_{t=1}^T \vert \widehat{\text{HourlyCounts}}_{sensor,t} - \text{HourlyCounts}_{sensor,t} \vert}{\sum_{t=1}^T \text{HourlyCounts}_{sensor,t}}$$
+$$MARE_{sensor} =  \frac{1}{T^2} \frac{\sum_{t=1}^T \left| \widehat{\text{HourlyCounts}}_{sensor,t} - \text{HourlyCounts}_{sensor,t} \right|}{\sum_{t=1}^T \text{HourlyCounts}_{sensor,t}}$$
 
 We calculate a seperate MARE for predictions in-sample (in the training set) and the predictions out of sample (test set of 2017 data). This will help to identify overfitting of the data. We use MARE as it will be a comparable measure between sensor locations as well as comparable between models. 
 
@@ -821,19 +821,19 @@ ts <- original_df %>% filter(Date_Time > "2016-12-31")
 
 MARE_base_ts <- numeric()
 for (i in unique(ped_data$Sensor)){
-  MARE_base_ts[i] <- mean(abs(test_base[[i]] - unlist(ori_ts2[, i])), na.rm = T) / mean(unlist(ori_ts2[, i]), na.rm = T)
+  MARE_base_ts[i] <- mean(abs(test_base[[i]] - unlist(ori_ts[, i])), na.rm = T) / mean(unlist(ori_ts[, i]), na.rm = T)
 }
 
 MARE_ts <- numeric()
 for (i in unique(ped_data$Sensor)){
-  MARE_ts[i] <- mean(abs(test_fit[[i]] - unlist(ori_ts2[, i])), na.rm = T) / mean(unlist(ori_ts2[, i]), na.rm = T)
+  MARE_ts[i] <- mean(abs(test_fit[[i]] - unlist(ori_ts[, i])), na.rm = T) / mean(unlist(ori_ts[, i]), na.rm = T)
 }
 ```
 
 Again, we start by comparing the fit at a sensor location with a small proportion of missing values, Melbourne Central:
 
 ```{r, fig.height=3, fig.width=6, fig.cap = "A plot of the out-of-sample (2017) Actual vs Predicted pedestrian counts at Melbourne Central (sensor location with small proportion of missing values) for the simple GLM model and the improved GLM model. The dashed line is $x=y$, representing a reference for perfect fit, while solid line is the linear fit of the points. The improved method at Melbourne Central is seen to correct underestimation in the simple model by adding month of the year as a predictor in the model."}
-p1 <- ggplot(data = NULL, aes(x = ori_ts2[, "Melbourne Central"],
+p1 <- ggplot(data = NULL, aes(x = ori_ts[, "Melbourne Central"],
            y = test_base$`Melbourne Central`)) +
            geom_point(alpha = 0.05) +
            geom_abline(aes(slope = 1, intercept = 0),
@@ -849,7 +849,7 @@ p1 <- ggplot(data = NULL, aes(x = ori_ts2[, "Melbourne Central"],
            scale_y_continuous(limits = c(0, 4000)) +
            xlab("Actual Pedestrian Count") +
            ylab("Predicted Pedestrian Count \n by simple imputation method")
-p2 <- ggplot(data = NULL, aes(x =ori_ts2[, "Melbourne Central"],
+p2 <- ggplot(data = NULL, aes(x =ori_ts[, "Melbourne Central"],
            y = test_fit$`Melbourne Central`)) +
            geom_point(alpha = 0.05) +
            geom_abline(aes(slope = 1, intercept = 0),
