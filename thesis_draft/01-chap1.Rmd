@@ -543,6 +543,8 @@ In order to use a mixture of the patterns from two different sensors, the use of
 
 # Implementation of improved imputation algorithm
 
+All data manipulation, exploration, visualisation and model estimation has been done in R using the RStudio IDE. A full list of R packages used is available in the Acknowledgements.
+
 The exact code used for this paper can be found on http://github.com/gavinchin/honours2017 
 
 ### False zero-counts correction
@@ -646,7 +648,7 @@ Visually, it can be seen that the fitted values are good estimates of the pedest
 
 This provides evidence that the GLM model with only time and date based variables work well when there is only small periods of missing data.  
 
-However, using this same model specification at sensor locations with large proportions of missing values, the fit is poor. We use the sensor at Australia on Collins, where the proportion of missing values is `r round(na_prop["Australia on Collins"]*100, 2)`%. 
+However, using this same model specification at sensor locations with large proportions of missing values, the prediction accuracy is poor. The sensor at Australia on Collins, where the proportion of missing values is `r round(na_prop["Australia on Collins"]*100, 2)`%, is used for the evaluation of goodness of fits. 
 ```{r}
 options(na.action = na.omit)
 p1 <- ggplot(data = NULL, aes(x = ori_2[-(is.na(ori_2$`Australia on Collins`)), ] %>% 
@@ -693,13 +695,15 @@ grid.arrange(p1, p2, nrow = 1)
 
 ```
 
-We can see that the simple model has bias caused by the false zero counts, resulting in the predicted values to be underestimated. This is shown by the slope of the fitted line on the actual counts against predicted counts being $<1$, emphasising the importance of the first step taken in the algorithm of the improved model to class the false zero counts as missing values. 
+It is observed that the simple model has biased estimates caused by the false zero counts, resulting in the predicted values to be underestimated. This is shown by the slope of the fitted line on the actual counts against predicted counts being $<1$, emphasising the importance of the first step taken in the algorithm of the improved model to class the false zero counts as missing values. 
 
-The criterion we will use to measure goodness of fit is MARE. It is calculated by:
+The criterion used to measure goodness of fit is mean absolute relative error (MARE). It is calculated by:
 
 $$MARE_{sensor} =  \frac{1}{T^2} \frac{\sum_{t=1}^T \left| \widehat{\text{HourlyCounts}}_{sensor,t} - \text{HourlyCounts}_{sensor,t} \right|}{\sum_{t=1}^T \text{HourlyCounts}_{sensor,t}}$$
 
-We calculate a seperate MARE for predictions in-sample (in the training set) and the predictions out of sample (test set of 2017 data). This will help to identify overfitting of the data. We use MARE as it will be a comparable measure between sensor locations as well as comparable between models. 
+Absolute errors are used instead of squared errors as penalising larger errors relative to smaller errors was not desirable. A relative measure is used so that comparisons can be made between sensors.
+
+A seperate MARE for predictions in-sample (in the training set) and the predictions out of sample (test set of 2017 data) is calculated. This is to help identify overfitting of the training data. 
 
 ```{r}
 MARE_base_glm_tr <- numeric()
@@ -749,9 +753,9 @@ grid.arrange(p1, p2, p3, nrow = 1)
 
 ```
 
-While it is not very clear when comparing the distribution of in-sample MARE between imputation models, when we compare the in-sample MARE at each location we can see that the majority of locations had better in-sample fit with the improved model using the algorithm. We do see that some locations did have worse in-sample fit, but overall we see improvement with `r sum(MARE_base_glm_tr > MARE_tr)` having better fit with the improved model over the simple model. 
+While it is not very clear when comparing the distribution of in-sample MARE between imputation models, comparisons between the in-sample MARE at each location shows that the majority of locations had better in-sample fit with the improved model using the algorithm. It was observed that some locations did have worse in-sample fit, but overall, an improvement in model accuracy is seen with `r sum(MARE_base_glm_tr > MARE_tr)` locations having better fit with the improved model over the simple model. 
 
-Focusing on the date 04/07/2014, which has 3 hours of missing data at Southern Cross Station:  
+Focusing on the date 04/07/2014, which has 3 hours of missing data at Southern Cross Station, the replacement of missing values with imputed values is illustrated. It can be seen that the general pattern of pedestrian counts is retained, and thus should have minimal impact when using the imputed data for training predictive models.
 
 ```{r, fig.height = 2, fig.width = 5, fig.align='center', fig.cap="A plot of the pedestrian counts at Southern Cross Station for 04/07/2014 - 05/07/2014. The black line is the observed counts, where the yellow line is the imputed counts. This illustrates the replacement of missing values with imputed values."}
 fit_dat_plot <- data.frame(Date_Time = dfa2$Date_Time,
@@ -771,7 +775,7 @@ ggplot(original_df %>%  filter(Date_Time < "2014-07-06 00:00:00",
   theme(plot.title = element_text(hjust = 0.5)) 
 ```
 
-More importantly, we can evaluate the performance of the model on the out of sample observations (2017 data) as cross validation. Due to potential false zero counts in the test data sourced from `rwalkr::walk_melb()`, we need to again apply the correction by long sequences of repeated values to be able to properly evaluate the goodness of fit of out-of-sample observations. The method used for this is identical to that used on the training set in the algorithm, replacing sequences of length 6 hours or longer with `NA`.
+More importantly, the performance of the model's predictions of the out of sample observations (2017 data) is evavaluated as cross validation. Due to potential false zero counts in the test data sourced from `rwalkr::walk_melb()`, correction of false zero-counts are required to be able to properly evaluate the goodness of fit of out-of-sample observations. The method used for this is identical to that used on the training set in the algorithm, with replacement of repeated value sequences of length 6 hours or longer with the value `NA`.
 
 ```{r ts_fix0}
 for(i in unique(ped_data$Sensor)){
@@ -830,7 +834,7 @@ for (i in unique(ped_data$Sensor)){
 }
 ```
 
-Again, we start by comparing the fit at a sensor location with a small proportion of missing values, Melbourne Central:
+Again, comparing the fit at a sensor location with a small proportion of missing values, Melbourne Central shows the bias in the estimates of the simple model caused by false zero-counts. There is good improvement in the prediction accuracy using the improved method.
 
 ```{r, fig.height=3, fig.width=6, fig.cap = "A plot of the out-of-sample (2017) Actual vs Predicted pedestrian counts at Melbourne Central (sensor location with small proportion of missing values) for the simple GLM model and the improved GLM model. The dashed line is $x=y$, representing a reference for perfect fit, while solid line is the linear fit of the points. The improved method at Melbourne Central is seen to correct underestimation in the simple model by adding month of the year as a predictor in the model."}
 p1 <- ggplot(data = NULL, aes(x = ori_ts[, "Melbourne Central"],
@@ -868,7 +872,7 @@ p2 <- ggplot(data = NULL, aes(x =ori_ts[, "Melbourne Central"],
 grid.arrange(p1, p2, nrow = 1)
 ```
 
-We find that the out-of-sample predictions of at Melbourne Central by the simple model has a tendency to underestimate the pedestrian counts. By comparison, the predictions made by the improved imputation model does not underestimate the counts as much. Comparing the out-of-sample MARE between models at Melbourne Central, MARE decreases from `r round(MARE_base_ts["Melbourne Central"]*100, 2)`% to `r round(MARE_ts["Melbourne Central"]*100, 2)`% with the use of the improved model. 
+When comparing the out-of-sample MARE between models at Melbourne Central, the improvement in prediction accuracy is seen by the MARE decreasing from `r round(MARE_base_ts["Melbourne Central"]*100, 2)`% to `r round(MARE_ts["Melbourne Central"]*100, 2)`% with the use of the improved model. 
 
 ```{r, fig.height=3, fig.width=6, fig.cap = "A plot of the out-of-sample (2017) Actual vs Predicted pedestrian counts at Collins Place (South) (sensor location with large proportion of missing values) for the simple GLM model and the improved GLM model. The dashed line is $x=y$, representing a reference for perfect fit, while solid line is the linear fit of the points. Using neighbouring sensor counts as predictors, as well as correcting for the false zero-counts in the training data, are seen to reduce the degree of underestimation in the predicted values. "}
 p1 <- ggplot(data = NULL, aes(x = ori_ts[, "Collins Place (South)"],
@@ -906,7 +910,7 @@ p2 <- ggplot(data = NULL, aes(x =ori_ts[, "Collins Place (South)"],
 grid.arrange(p1, p2, nrow = 1)
 ```
 
-At a sensor location with a large proportion of missing values, Collins Place (South), we again see a tendency to underestimate counts with the simple imputation model. The improved imputation method reduces the underestimation of the predictions and provides better predictions. The MARE is greatly improved, where it decreases from `r round(MARE_base_ts["Collins Place (South)"]*100, 2)`% to `r round(MARE_ts["Collins Place (South)"]*100, 2)`% with the use of the improved model. 
+At a sensor location with a large proportion of missing values, Collins Place (South), the tendency to underestimate counts with the simple imputation model is also observed. The improved imputation method reduces the underestimation of the predictions and provides better predictions as a result of the false-zero correction and using neighbouring sensor counts as predictors. The MARE is greatly improved, where it decreases from `r round(MARE_base_ts["Collins Place (South)"]*100, 2)`% to `r round(MARE_ts["Collins Place (South)"]*100, 2)`% with the use of the improved model. 
 
 ```{r}
 MARE_base_ts2 <- MARE_base_ts[setdiff(unique(ped_data$Sensor),
@@ -973,10 +977,10 @@ ggplot() + geom_smooth(aes(x = as.integer(Time),
            facet_wrap(~ DayType)
 ```
 
-The plot of the average counts by time of day and type of day and data set shows that this location saw an increase in counts on weekdays which did not occur at the neghbouring sensors. We also see that the pattern is slightly different during weekdays, with a higher afternoon/evening peak. These types of change in pedestrian traffic behaviour is hard to capture in our imputation model, especially when its neighbours did not have a similar change. While we can add a year variable to allow for year to year growth, the short period of training data doesn't make this appropriate at this stage.  
+The plot of the average counts by time of day and type of day and data set shows that this location saw an increase in counts on weekdays which did not occur at the neghbouring sensors. It was also seen that the pattern is slightly different during weekdays, with a higher afternoon/evening peak. These types of change in pedestrian traffic behaviour is hard to capture in our imputation model, especially when its neighbours did not have a similar change. While it is possible to add a variable for year to allow for year to year growth, the short period of training data doesn't make this appropriate at this stage.  
 
-Another way we can perform cross-validation is to remove data at a sensor, and evaulate the predictions made. This will allow us to evaluate the imputation model's performance within sample, which is the primary concern with them imputation process.  
-We select a sensor which has a small proportion of missing values, Bourke Street Mall (South), which has `r round((1 - na_prop["Bourke Street Mall (South)"])*100, 3)`% of data available. As observed in the data, missing data is present in different ways: random, short periods of missing data (no more that 6 hours) or long periods of missing data (multiple months). We will simulate both types of missingness at this sensor location.  
+Another method to perform cross-validation of the robustness of the model is to remove data at a sensor, and evaulate the predictions made. This will allow us to evaluate the imputation model's performance of out of sample but within training period observations, which is the primary concern with them imputation process.  
+The sensor selected with a small proportion of missing values, Bourke Street Mall (South), has `r round((1 - na_prop["Bourke Street Mall (South)"])*100, 3)`% of data available. As observed in the data, missing data is present in different ways: random, short periods of missing data (no more that 6 hours) or long periods of missing data (multiple months). Simulation of both types of missingness at this sensor location is performed.  
 
 First, data is randomly removed such that 20% of the training data is missing, then the imputation model is estimated. Using the estimated model, the MARE within the training data is calculated (in-sample MARE).
 ```{r}
@@ -1081,7 +1085,7 @@ ggplot() + geom_line(aes(x = dfa2$Date_Time, y = mall_missing_2),
           theme_minimal() + theme(plot.title = element_text(hjust = 0.5))
 ```
 
-The MARE of the estimated model is `r round(mall_mare_2*100, 2)`%, which is similar to what was obtained when the missing values were random. This demonstrates that the model quite well when we remove 20% of the observations from the training data. 
+The MARE of the estimated model is `r round(mall_mare_2*100, 2)`%, which is similar to what was obtained when the missing values were random. This demonstrates that the model performs quite well when 20% of the observations from the training data is missing/removed. 
 
 
 ```{r}
@@ -1133,4 +1137,4 @@ ggplot() + geom_line(aes(x = dfa2$Date_Time, y = mall_missing_3),
           theme_minimal() + theme(plot.title = element_text(hjust = 0.5))
 ```
 
-Removing 50% of the data using the same method, it is found that the in-sample MARE is not affected significantly by the larger proportion of missing training data where it is only `r round(mall_mare_3*100, 2)`%.
+Removing 50% of the data using the same method, it is also found that the in-sample MARE is not affected significantly by the larger proportion of missing training data where it is only `r round(mall_mare_3*100, 2)`%. As such, it can be concluded that, at least for this sensor location, the imputation using neighbouring sensor counts as predictors is robust to high proportions of missing data.
