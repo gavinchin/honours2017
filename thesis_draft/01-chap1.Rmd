@@ -105,7 +105,7 @@ Modelling pedestrian activity in the Melbourne CBD will provide insights to the 
 
 Throughout the data exploration and analysis, issues with respect to missing values in the pedestrian data are explored and solutions to these issues are proposed. These issues have been seen to cause biased estimates when building models for prediction. Efficient methods for solving these issues is also a priority due to the size of the data.
 
-#Background
+# Background
 
 ### The Data: City of Melbourne Pedestrian Data
 
@@ -116,11 +116,12 @@ ped_data %>% select(Sensor, Hourly_Counts) %>% split(.$Sensor)  %>%
             map(is.na) %>% map(sum) %>% unlist -> sensor_missvals
 ```
 
+The period of data which is being used for analysis is between 01/01/2014 to 22/10/2017 (date of this paper). This is due to the poor quality of the dataset pre-2014 with many missing values with few sensors being installed during at the start of pedestrian counts recording (in 2009).
 
-No sensor location has complete data for the period between between 1/1/2014 and `r paste(day(today()), month(today()), year(today()), sep = "/")`. 
+Even with a truncated period for the data, no sensor location has complete data for the period between between 01/01/2014 and 31/12/2016 (the training period to be used for predictive models in the paper). As a result, imputation of the data is required for meaningful analysis of pedestrian behaviour.
 
 
-# Literature Review
+### Literature Review
 <!-- #### IMPUTATION OF MISSING CLASSIFIED TRAFFIC DATA DURING WINTER SEASON - _Hyuk-Jae Roh, Satish Sharma, Prasanta K. Sahu_   -->
 
 <!-- http://ir.lib.uwo.ca/cgi/viewcontent.cgi?article=1250&context=csce2016   -->
@@ -145,7 +146,6 @@ Reviewing current research on imputation of missing values in traffic data, a pa
 Replacement with "good" historical values, or using historical average values was found to have resulted in very poor fit with high MARE/MARD (mean absolute relative error/difference). Roh et al. found that using a moving average worked the best out of all the heuristic methods used. The largest problem with heuristic methods, however, was the inherent inability to reflect sudden fluctuations/shocks during abnormal periods. With such a large proportion of missing values, pattern matching methods were investigated. This involves comparing the _study curve_, the pattern at the counter which is to be imputed, to candidate patterns (patterns at other locations).  
 
 For the purposes of that paper, it was found to be inappropriate with the data being analysed.  However, unlike the highway traffic data, where patterns were compared to traffic volumes in different jurisdictions (large geographical distance), the geographic distances between the sensor locations in the Melbourne CBD pedestrian data are much smaller. Another major difference is the randomness of the missing values, where the periods of missing data run longer in the Melbourne CBD pedestrian data compared to that in the Alberta traffic data. Roh et al. proposed using non-parametric estimation methods with k-Nearest Neighbours (kNN) for imputation, although this is unlikely to work well with the lack of data at certain sensor locations in the Melbourne CBD Pedestrian data.
-
 
 
 
@@ -689,7 +689,7 @@ p2 <- ggplot(data = NULL, aes(x = ori_2[-(is.na(ori_2$`Australia on Collins`)), 
            ylab("Predicted Pedestrian Count \n by improved imputation method")
 ```
 
-```{r, fig.cap = paste("A plot of the in-sample Actual vs Predicted pedestrian counts at Australia on Collins (sensor location with large proportion of missing values) for the simple GLM model and the improved GLM model. The dashed line is $x=y$, representing a reference for perfect fit, while solid line is the linear fit of the points. The improvement in the imputation model is significant, where the predicted values lie closer to the dashed line. The simple model shows bias caused by the false zero-counts, causing underestimation. ")}
+```{r, fig.cap = paste("A plot of the in-sample Actual vs Predicted pedestrian counts at Australia on Collins (sensor location with large proportion of missing values) for the simple GLM model and the improved GLM model. The dashed line is $x=y$, representing a reference for perfect fit, while solid line is the linear fit of the points. The improvement in the imputation model is significant, where the predicted values lie closer to the dashed line. The simple model shows bias caused by the false zero-counts, causing underestimation.")}
 
 grid.arrange(p1, p2, nrow = 1)
 
