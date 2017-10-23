@@ -16,7 +16,7 @@ fontsize: 12pt
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = FALSE, cache = TRUE,
                       message = FALSE, warning = FALSE,
-                      fig.pos = 'h')
+                      fig.pos = 'h', dev = 'png')
 library(tidyverse)
 library(lubridate)
 library(foreach)
@@ -95,14 +95,14 @@ ped_loc <- read.csv("../data/Pedestrian_sensor_locations.csv")
 ```
 # Introduction  
 
-The City of Melbourne provides an open data platform to access council datasets, with the intention "to increase transparency, improve public services and support new economic and social initiatives". This paper will focus primarily on the pedestrian data collected from pedestrian sensors placed throughout Melbourne's CBD. In particular, the aim is to model the pedestrian behaviour at different locations in the CBD, and predict pedestrian counts.  
+The City of Melbourne provides an open data platform to access council datasets, with the intention "to increase transparency, improve public services and support new economic and social initiatives". This paper will focus primarily on the pedestrian data collected from pedestrian sensors placed throughout Melbourne's CBD. In particular, the aim is to model the pedestrian behaviour at different locations in the CBD, and predict pedestrian counts. 
 
-The main issue which is encountered with traffic data in general is the presence of missing values. For the Melbourne CBD pedestrian data, data is missing as a result of the 
+The main issue which is encountered with traffic data in general is the presence of missing values. For the Melbourne CBD pedestrian data, data is missing as a result of sensors being installed over time, as well as technical issues. As a consequence, data imputation, the estimation of missing data, is required.
 
 Imputation methods are explored due to the lack of complete data in the pedestrian dataset. Without imputation on the data, some sensors lack information about pedestrian activity. This makes statistical inference and model estimation difficult to compare between locations. 
 
+## Motivation
 
-# Motivation
 Modelling pedestrian activity in the Melbourne CBD will provide insights to the social and consumer behaviour of the people within the city. In particular, prediction of pedestrian traffic will provide information about the way the city operates. Examples of some uses of such information include infrastructure planning, or security planning (which has become quite important in recent times) within the government sector. Private uses of such information include marketing, such as finding optimal locations to launch advertising campaigns, resource management for businesses to improve staffing based on pedestrian traffic, and investment planning to analyse business plan feasibility.
 
 Throughout the data exploration and analysis, issues with respect to missing values in the pedestrian data are explored and solutions to these issues are proposed. These issues have been seen to cause biased estimates when building models for prediction. Efficient methods for solving these issues is also a priority due to the size of the data. As such, the imputation method used should be computationally feasible. 
@@ -175,7 +175,7 @@ Another important part of analysis which needed to be conducted when performing 
 
 ### Basic GLM Approach
 
-The first method used to impute missing values is to fit generalised linear models (GLMs) at each sensor location. Estimating a GLM with a Quasi-Poisson error distribution, where specify the model as:
+The first method used to impute missing values is to fit generalised linear models (GLMs) at each sensor location. Estimating a GLM with a quasipoisson error distribution, where specify the model as:
 $$E \left[\text{HourlyCounts} \vert \text{Sensor}, \text{HDay}, \text{Time} \right] = \exp (\mu_{\text{Sensor}, \text{HDay}, \text{Time}}) $$
 $$\text{where } \quad \mu_{\text{Sensor}, \text{HDay}, \text{Time}} \sim \text{Time}\times \text{HDay} \tag{1}$$
 `Time` is the time of the day, while `HDay` is the day of the week, with an additional factor level for public holidays. 
