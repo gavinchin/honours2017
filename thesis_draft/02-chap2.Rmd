@@ -152,4 +152,3 @@ Using the imputed data, a predictive model to be used for point estimates for a 
 
 Further research to improve the imputation algorithm can be made, such as more alternative models for different proportions of missing values. Cross validation of different missing proportion threshold values could also improve the prediction accuracy of the imputation models.
 
-\nocite{*}

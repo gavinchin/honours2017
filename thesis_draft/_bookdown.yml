@@ -6,4 +6,5 @@ rmd_files: ["index.Rmd",
   "00-acknowledge.Rmd",
   "00-abstract.Rmd",
   "01-chap1.Rmd",
-  "02-chap2.Rmd"]
+  "02-chap2.Rmd",
+  "03-refs.Rmd"]

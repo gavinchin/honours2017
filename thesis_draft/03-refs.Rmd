@@ -1,0 +1,36 @@
+---
+knit: "bookdown::render_book"
+---
+
+# References {-}
+
+City of Melbourne. (2017) City of Melbourne - Open Data Portal, data.melbourne.vic.gov.au  
+
+City of Melbourne. (2017) City Of Melbourne: Pedestrian Counting System, pedestrian.melbourne.vic.gov.au  
+
+David Kahle and Hadley Wickham. (2016) ggmap: Spatial visualization with ggplot2  
+
+Simon Garnier. (2017) The viridis color palettes  
+
+Lionel Henry and Hadley Wickham. (2017) purrr: Functional programming tools  
+
+
+Kirill Müller and Hadley Wickham. (2017) tibble: Simple data frames  
+
+Hyuk-Jae Roh, Satish Sharma, and Prasanta K. Sahu. (2016) Imputation of missing classified traffic data during winter season  
+
+Vitalie Spinu, Garrett Grolemund, and Hadley Wickham. (2016) lubridate: Make dealing with dates a little easier  
+
+Mario Pineda-Krch. (2010) Great-circle distance calculations in R, R-bloggers  
+
+Earo Wang. (2017) rwalkr: API to Melbourne Pedestrian Data  
+
+Hadley Wickham and Winston Chang. (2016) ggplot2: Create Elegant Data Visualisations Using the Grammar of Graphics  
+
+Hadley Wickham and Romain Francois and Lionel Henry and Kirill Müller. (2017) dplyr: A grammar of data manipulation  
+
+Jing-ting Zhong and Shuai Ling. (2015) Key factors of k-nearest neighbours nonparametric regression in short-time traffic flow forecasting, Proceedings of the 21st International Conference on Industrial Engineering and Engineering Management 2014, 9–12  
+
+Ming Zhong, Satish Sharma, and Zhaobin Liu. (2005) Assessing robustness of imputation models based on data from different jurisdictions: Examples of Alberta and Saskatchewan, Canada, Transportation Research Record: Journal of the Transportation Research Board 1917, 116–126  
+
+Nina Zumel. (2014) Trimming the fat from glm() models in R, Win-Vector LLC
